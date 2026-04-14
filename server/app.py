@@ -724,7 +724,7 @@ def stream_youtube(video_id):
         print(f"DEBUG: Cache MISS for {video_id}. Extracting...")
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         ydl_opts = {
-            'format': 'bestaudio/best',
+            'format': 'm4a/bestaudio/best', # Prefer single-file formats over DASH
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
@@ -740,7 +740,7 @@ def stream_youtube(video_id):
                 audio_url = info.get('url')
                 
                 if not audio_url:
-                    print(f"ERROR: Could not extract audio URL for {video_id}")
+                    print(f"ERROR: No URL extracted for {video_id}. Info keys: {list(info.keys()) if info else 'None'}")
                     return "Could not extract audio URL", 404
 
                 # Cache it

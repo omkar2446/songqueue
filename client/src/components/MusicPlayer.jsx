@@ -130,11 +130,21 @@ const MusicPlayer = () => {
         const audio = audioRef.current;
         if (!audio) return;
         buildAudioChain();
+        
         if (isPlaying) {
             if (audioCtx.current?.state === 'suspended') {
                 audioCtx.current.resume();
             }
-            audio.play().catch(e => console.warn('Autoplay blocked:', e));
+            
+            // Handle play promise to avoid AbortError when interrupted by pause
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    if (error.name !== 'AbortError') {
+                        console.warn('Autoplay blocked:', error);
+                    }
+                });
+            }
         } else {
             audio.pause();
         }
