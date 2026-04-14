@@ -727,11 +727,13 @@ def stream_youtube(video_id):
             print(f"DEBUG: Extracting fresh URL for {video_id}...")
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             ydl_opts = {
-                'format': 'm4a/bestaudio/best',
+                'format': 'ba[ext=m4a]/ba/b[ext=mp4]/b', # Force Best Audio M4A
                 'quiet': True,
                 'no_warnings': True,
                 'nocheckcertificate': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'referer': 'https://www.youtube.com/',
+                'geo_bypass': True,
             }
             try:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -740,8 +742,8 @@ def stream_youtube(video_id):
                     if audio_url:
                         url_cache[video_id] = {'url': audio_url, 'expires': now + 7200}
             except Exception as e:
-                print(f"ERROR: Extraction failed: {e}")
-                return f"Extraction Error: {str(e)}", 500
+                print(f"ERROR: Extraction failed for {video_id}: {e}")
+                return jsonify({'error': 'Extraction Failed', 'details': str(e)}), 500
 
         if not audio_url:
             return "Could not resolve audio", 404
@@ -775,7 +777,7 @@ def stream_youtube(video_id):
 
     def generate():
         try:
-            for chunk in req.iter_content(chunk_size=16384):
+            for chunk in req.iter_content(chunk_size=4096):
                 if chunk: yield chunk
         except Exception as e:
             print(f"ERROR: Stream interrupted: {e}")
