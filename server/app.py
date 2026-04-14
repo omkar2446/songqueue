@@ -714,91 +714,85 @@ def stream_youtube(video_id):
     import time
     from flask import Response, stream_with_context
 
-    # Check cache first (URLs typically last 6 hours, we'll cache for 2)
     now = time.time()
-    cache_hit = url_cache.get(video_id)
-    if cache_hit and cache_hit['expires'] > now:
-        print(f"DEBUG: Cache HIT for {video_id}")
-        audio_url = cache_hit['url']
-    else:
-        print(f"DEBUG: Cache MISS for {video_id}. Extracting...")
-        video_url = f"https://www.youtube.com/watch?v={video_id}"
-        ydl_opts = {
-            'format': 'm4a/bestaudio/best', # Prefer single-file formats over DASH
-            'quiet': True,
-            'no_warnings': True,
-            'nocheckcertificate': True,
-            'ignoreerrors': False,
-            'logtostderr': False,
-            'no_color': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
+    retry_count = 0
+    audio_url = None
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(video_url, download=False)
-                audio_url = info.get('url')
-                
-                if not audio_url:
-                    print(f"ERROR: No URL extracted for {video_id}. Info keys: {list(info.keys()) if info else 'None'}")
-                    return "Could not extract audio URL", 404
-
-                # Cache it
-                url_cache[video_id] = {
-                    'url': audio_url,
-                    'expires': now + (2 * 3600)
-                }
-                print(f"DEBUG: Successfully extracted and cached {video_id}")
-        except Exception as e:
-            print(f"CRITICAL: Proxy extraction error for {video_id}: {e}")
-            return f"Extraction Error: {str(e)}", 500
-
-    try:
-        # Forward Range headers from client to YouTube for seeking support
-        headers = {}
-        range_header = request.headers.get('Range')
-        if range_header:
-            headers['Range'] = range_header
-            print(f"DEBUG: Forwarding range {range_header}")
-
-        # Stream the audio data from YouTube through our server
-        # This bypasses CORS and allows it to be used in MediaElementSource
-        headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        headers['Referer'] = 'https://www.youtube.com/'
-        
-        print(f"DEBUG: Fetching stream from {audio_url[:60]}...")
-        req = requests.get(audio_url, stream=True, timeout=30, headers=headers)
-        
-        if req.status_code >= 400:
-            print(f"ERROR: YouTube CDN returned {req.status_code}")
-            return f"YouTube CDN Error: {req.status_code}", req.status_code
-
-        def generate():
+    while retry_count < 2:
+        cache_hit = url_cache.get(video_id)
+        if cache_hit and cache_hit['expires'] > now:
+            audio_url = cache_hit['url']
+            print(f"DEBUG: Using cached URL for {video_id} (Attempt {retry_count + 1})")
+        else:
+            print(f"DEBUG: Extracting fresh URL for {video_id}...")
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            ydl_opts = {
+                'format': 'm4a/bestaudio/best',
+                'quiet': True,
+                'no_warnings': True,
+                'nocheckcertificate': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
             try:
-                for chunk in req.iter_content(chunk_size=8192):
-                    yield chunk
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(video_url, download=False)
+                    audio_url = info.get('url')
+                    if audio_url:
+                        url_cache[video_id] = {'url': audio_url, 'expires': now + 7200}
             except Exception as e:
-                print(f"ERROR: Streaming chunk failed: {e}")
+                print(f"ERROR: Extraction failed: {e}")
+                return f"Extraction Error: {str(e)}", 500
 
-        resp = Response(
-            stream_with_context(generate()),
-            content_type=req.headers.get('content-type', 'audio/mpeg'),
-            status=req.status_code
-        )
-        
-        # Pass through seeking-related headers
-        if 'Content-Range' in req.headers:
-            resp.headers['Content-Range'] = req.headers['Content-Range']
-        if 'Content-Length' in req.headers:
-            resp.headers['Content-Length'] = req.headers['Content-Length']
-        resp.headers['Accept-Ranges'] = 'bytes'
-        resp.headers['Access-Control-Allow-Origin'] = '*'
-        
-        return resp
+        if not audio_url:
+            return "Could not resolve audio", 404
+
+        # Attempt to connect to YouTube CDN
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Referer': 'https://www.youtube.com/'}
+            range_header = request.headers.get('Range')
+            if range_header:
+                headers['Range'] = range_header
             
-    except Exception as e:
-        print(f"CRITICAL: Proxy streaming error for {video_id}: {e}")
-        return f"Streaming Error: {str(e)}", 500
+            req = requests.get(audio_url, stream=True, timeout=15, headers=headers)
+            
+            # If 403, the URL likely expired. Clear cache and retry.
+            if req.status_code in (403, 401) and retry_count == 0:
+                print(f"DEBUG: CDN returned {req.status_code}, invalidating cache and retrying...")
+                if video_id in url_cache: del url_cache[video_id]
+                retry_count += 1
+                continue
+            
+            if req.status_code >= 400:
+                print(f"ERROR: YouTube CDN returned {req.status_code}")
+                return f"CDN Error: {req.status_code}", req.status_code
+
+            # Success! Break the retry loop
+            break
+        except Exception as e:
+            print(f"ERROR: Connection to CDN failed: {e}")
+            retry_count += 1
+            if retry_count >= 2: return str(e), 500
+
+    def generate():
+        try:
+            for chunk in req.iter_content(chunk_size=16384):
+                if chunk: yield chunk
+        except Exception as e:
+            print(f"ERROR: Stream interrupted: {e}")
+
+    resp = Response(
+        stream_with_context(generate()),
+        status=req.status_code,
+        content_type=req.headers.get('content-type', 'audio/mp4')
+    )
+    
+    # Standard streaming headers
+    for h in ['Content-Range', 'Content-Length', 'Accept-Ranges']:
+        if h in req.headers: resp.headers[h] = req.headers[h]
+    
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
 
 # --- Spotify -> YouTube Full Playback Resolver ---
 @app.route('/api/spotify/resolve', methods=['POST'])
