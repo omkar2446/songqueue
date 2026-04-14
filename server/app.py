@@ -718,8 +718,10 @@ def stream_youtube(video_id):
     now = time.time()
     cache_hit = url_cache.get(video_id)
     if cache_hit and cache_hit['expires'] > now:
+        print(f"DEBUG: Cache HIT for {video_id}")
         audio_url = cache_hit['url']
     else:
+        print(f"DEBUG: Cache MISS for {video_id}. Extracting...")
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -738,6 +740,7 @@ def stream_youtube(video_id):
                 audio_url = info.get('url')
                 
                 if not audio_url:
+                    print(f"ERROR: Could not extract audio URL for {video_id}")
                     return "Could not extract audio URL", 404
 
                 # Cache it
@@ -745,9 +748,10 @@ def stream_youtube(video_id):
                     'url': audio_url,
                     'expires': now + (2 * 3600)
                 }
+                print(f"DEBUG: Successfully extracted and cached {video_id}")
         except Exception as e:
-            print(f"Proxy extraction error: {e}")
-            return str(e), 500
+            print(f"CRITICAL: Proxy extraction error for {video_id}: {e}")
+            return f"Extraction Error: {str(e)}", 500
 
     try:
         # Forward Range headers from client to YouTube for seeking support
@@ -755,16 +759,26 @@ def stream_youtube(video_id):
         range_header = request.headers.get('Range')
         if range_header:
             headers['Range'] = range_header
+            print(f"DEBUG: Forwarding range {range_header}")
 
         # Stream the audio data from YouTube through our server
         # This bypasses CORS and allows it to be used in MediaElementSource
         headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         headers['Referer'] = 'https://www.youtube.com/'
+        
+        print(f"DEBUG: Fetching stream from {audio_url[:60]}...")
         req = requests.get(audio_url, stream=True, timeout=30, headers=headers)
         
+        if req.status_code >= 400:
+            print(f"ERROR: YouTube CDN returned {req.status_code}")
+            return f"YouTube CDN Error: {req.status_code}", req.status_code
+
         def generate():
-            for chunk in req.iter_content(chunk_size=4096):
-                yield chunk
+            try:
+                for chunk in req.iter_content(chunk_size=8192):
+                    yield chunk
+            except Exception as e:
+                print(f"ERROR: Streaming chunk failed: {e}")
 
         resp = Response(
             stream_with_context(generate()),
@@ -783,8 +797,8 @@ def stream_youtube(video_id):
         return resp
             
     except Exception as e:
-        print(f"Proxy streaming error: {e}")
-        return str(e), 500
+        print(f"CRITICAL: Proxy streaming error for {video_id}: {e}")
+        return f"Streaming Error: {str(e)}", 500
 
 # --- Spotify -> YouTube Full Playback Resolver ---
 @app.route('/api/spotify/resolve', methods=['POST'])
