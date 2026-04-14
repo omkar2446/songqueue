@@ -564,7 +564,14 @@ def handle_playback(data):
                             print(f"Prefetching YouTube URL for: {v_id}")
                             import yt_dlp
                             try:
-                                with yt_dlp.YoutubeDL({'format': 'bestaudio/best', 'quiet': True}) as ydl:
+                                ydl_opts = {
+                                    'format': 'bestaudio/best',
+                                    'quiet': True,
+                                    'no_warnings': True,
+                                    'nocheckcertificate': True,
+                                    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                                }
+                                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                                     info = ydl.extract_info(f"https://www.youtube.com/watch?v={v_id}", download=False)
                                     url_cache[v_id] = {'url': info.get('url'), 'expires': time.time() + 7200}
                                     print(f"Prefetched: {v_id}")
