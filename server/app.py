@@ -718,6 +718,11 @@ def stream_youtube(video_id):
             'format': 'bestaudio/best',
             'quiet': True,
             'no_warnings': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'logtostderr': False,
+            'no_color': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
 
         try:
@@ -746,6 +751,8 @@ def stream_youtube(video_id):
 
         # Stream the audio data from YouTube through our server
         # This bypasses CORS and allows it to be used in MediaElementSource
+        headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        headers['Referer'] = 'https://www.youtube.com/'
         req = requests.get(audio_url, stream=True, timeout=30, headers=headers)
         
         def generate():

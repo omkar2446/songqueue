@@ -31,18 +31,38 @@ const MusicPlayer = () => {
     /* ── Build / rebuild Web Audio chain ─────────────────── */
     const buildAudioChain = () => {
         if (!audioRef.current) return;
+        
+        // Ensure AudioContext exists
         if (!audioCtx.current) {
             audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
         }
         
-        if (sourceNode.current) {
-            try { sourceNode.current.disconnect(); } catch(e){}
-            sourceNode.current = null;
+        const ctx = audioCtx.current;
+
+        // CRITICAL FIX: Only create MediaElementSourceNode ONCE for each audio element.
+        // If we already have a sourceNode, and it's connected to this EXACT element, skip creation.
+        // However, since the <audio> tag has a 'key', it is destroyed and recreated on song change.
+        // So we usually need a new sourceNode when the element changes.
+        // We use a custom property on the element to track if it's already "sourced".
+        if (audioRef.current._hasSourceNode && sourceNode.current) {
+            console.log("Audio element already has a source node, skipping recreation.");
+        } else {
+            if (sourceNode.current) {
+                try { sourceNode.current.disconnect(); } catch(e){}
+            }
+            sourceNode.current = ctx.createMediaElementSource(audioRef.current);
+            audioRef.current._hasSourceNode = true;
         }
 
-        const ctx = audioCtx.current;
-        sourceNode.current = ctx.createMediaElementSource(audioRef.current);
+        // Always rebuild the rest of the chain (filters, compressor, etc.)
+        // because eqBands or normalizeVolume might have changed.
+        
+        // Cleanup old chain
+        eqNodes.current.forEach(f => { try { f.disconnect(); } catch(e){} });
+        if (compressor.current) { try { compressor.current.disconnect(); } catch(e){} }
+        if (gainNode.current) { try { gainNode.current.disconnect(); } catch(e){} }
 
+        // Create Filters
         eqNodes.current = EQ_FREQS.map((freq, i) => {
             const f = ctx.createBiquadFilter();
             f.type = i === 0 ? 'lowshelf' : i === EQ_FREQS.length - 1 ? 'highshelf' : 'peaking';
@@ -51,6 +71,7 @@ const MusicPlayer = () => {
             return f;
         });
 
+        // Create Compressor for Volume Normalization
         compressor.current = ctx.createDynamicsCompressor();
         compressor.current.threshold.value = -24;
         compressor.current.knee.value = 30;
@@ -58,13 +79,24 @@ const MusicPlayer = () => {
         compressor.current.attack.value = 0.003;
         compressor.current.release.value = 0.25;
 
+        // Create Main Gain
         gainNode.current = ctx.createGain();
         gainNode.current.gain.value = 1;
 
+        // Wire it up: Source -> EQ[0] -> ... -> EQ[n] -> (Compressor) -> Gain -> Destination
         let node = sourceNode.current;
-        eqNodes.current.forEach(f => { node.connect(f); node = f; });
-        node.connect(normalizeVolume ? compressor.current : gainNode.current);
-        if (normalizeVolume) compressor.current.connect(gainNode.current);
+        eqNodes.current.forEach(f => { 
+            node.connect(f); 
+            node = f; 
+        });
+
+        const lastNode = normalizeVolume ? compressor.current : gainNode.current;
+        node.connect(lastNode);
+        
+        if (normalizeVolume) {
+            compressor.current.connect(gainNode.current);
+        }
+        
         gainNode.current.connect(ctx.destination);
     };
 

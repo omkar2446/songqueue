@@ -16,4 +16,4 @@ eventlet>=0.33.0
 gunicorn>=20.1.0
 
 # Media Processing (if applicable)
-yt-dlp>=2023.0.0
+yt-dlp
