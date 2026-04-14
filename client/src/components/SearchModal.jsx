@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
+import api from '../services/api';
 import { useRoom } from '../context/RoomContext';
 import { useSocket } from '../context/SocketContext';
 import {
@@ -97,7 +97,7 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
     /* ── Resolve Spotify → YouTube via backend ──────────── */
     const resolveSpotify = async (spotifyUrl) => {
         try {
-            const res = await axios.post('http://localhost:5000/api/spotify/resolve', {
+            const res = await api.post('/spotify/resolve', {
                 url: spotifyUrl
             });
             const data = res.data;

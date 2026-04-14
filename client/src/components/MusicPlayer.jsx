@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRoom } from '../context/RoomContext';
 import { useSocket } from '../context/SocketContext';
 import { Music2 } from 'lucide-react';
+import { BASE_URL } from '../services/api';
 
 // EQ frequency centres matching EqualizerPanel
 const EQ_FREQS = [60, 250, 1000, 4000, 16000];
@@ -246,9 +247,9 @@ const MusicPlayer = () => {
                 ref={audioRef}
                 crossOrigin="anonymous"
                 src={currentSong.source === 'youtube' 
-                    ? `http://localhost:5000/api/yt/stream/${currentSong.source_id}`
+                    ? `${BASE_URL}/api/yt/stream/${currentSong.source_id}`
                     : currentSong.source === 'file'
-                    ? `http://localhost:5000/uploads/${currentSong.source_id}`
+                    ? `${BASE_URL}/uploads/${currentSong.source_id}`
                     : currentSong.source_id}
                 onLoadedMetadata={e => { setDuration?.(e.target.duration); setIsBuffering(false); }}
                 onTimeUpdate={e => setPlaybackTime(e.target.currentTime)}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
+import api from '../services/api';
 import { useRoom } from '../context/RoomContext';
 import { X, Plus, Music2, Check, Loader2, Heart } from 'lucide-react';
 
@@ -12,7 +12,6 @@ const PlaylistSelectorModal = ({ isOpen, onClose, song }) => {
     const [success, setSuccess]     = useState(null);
 
     const token = localStorage.getItem('token');
-    const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
     useEffect(() => {
         if (isOpen && user && token) fetchPlaylists();
@@ -21,7 +20,7 @@ const PlaylistSelectorModal = ({ isOpen, onClose, song }) => {
     const fetchPlaylists = async () => {
         setLoading(true);
         try {
-            const res = await axios.get('http://localhost:5000/api/playlists', authHeaders);
+            const res = await api.get('/playlists');
             setPlaylists(res.data);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
@@ -30,7 +29,7 @@ const PlaylistSelectorModal = ({ isOpen, onClose, song }) => {
     const addToPlaylist = async (pid) => {
         setAdding(pid);
         try {
-            await axios.post(`http://localhost:5000/api/playlists/${pid}/songs`, song, authHeaders);
+            await api.post(`/playlists/${pid}/songs`, song);
             setSuccess(pid);
             setTimeout(() => {
                 setSuccess(null);

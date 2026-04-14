@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import { useRoom } from '../context/RoomContext';
 import { 
     Library, Plus, Music2, Trash2, Play, ChevronRight, 
@@ -22,7 +22,6 @@ const Playlists = () => {
     const [isAddingSong, setIsAddingSong] = useState(false);
 
     const token = localStorage.getItem('token');
-    const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
     useEffect(() => {
         if (user && token) fetchPlaylists();
@@ -69,7 +68,7 @@ const Playlists = () => {
 
     const fetchPlaylists = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/playlists', authHeaders);
+            const res = await api.get('/playlists');
             setPlaylists(res.data);
         } catch (err) {
             console.error('Fetch playlists failed', err);
@@ -80,7 +79,7 @@ const Playlists = () => {
 
     const fetchPlaylistDetail = async (id) => {
         try {
-            const res = await axios.get(`http://localhost:5000/api/playlists/${id}`, authHeaders);
+            const res = await api.get(`/playlists/${id}`);
             setDetail(res.data);
         } catch (err) {
             console.error('Fetch detail failed', err);
@@ -91,7 +90,7 @@ const Playlists = () => {
         e.preventDefault();
         if (!newName.trim()) return;
         try {
-            await axios.post('http://localhost:5000/api/playlists', { name: newName }, authHeaders);
+            await api.post('/playlists', { name: newName });
             setNewName('');
             setShowCreate(false);
             fetchPlaylists();
@@ -102,7 +101,7 @@ const Playlists = () => {
         e.stopPropagation();
         if (!confirm('Delete this playlist?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/playlists/${id}`, authHeaders);
+            await api.delete(`/playlists/${id}`);
             if (selected === id) setSelected(null);
             fetchPlaylists();
         } catch (err) { console.error(err); }
@@ -110,7 +109,7 @@ const Playlists = () => {
 
     const handleRemoveSong = async (sid) => {
         try {
-            await axios.delete(`http://localhost:5000/api/playlists/${selected}/songs/${sid}`, authHeaders);
+            await api.delete(`/playlists/${selected}/songs/${sid}`);
             fetchPlaylistDetail(selected);
         } catch (err) { console.error(err); }
     };
@@ -121,7 +120,7 @@ const Playlists = () => {
             return;
         }
         try {
-            await axios.post(`http://localhost:5000/api/room/${room.id}/add`, {
+            await api.post(`/room/${room.id}/add`, {
                 ...song,
                 added_by: user.name
             });
@@ -132,7 +131,7 @@ const Playlists = () => {
     const handleAddSong = async (song) => {
         if (!selected) return;
         try {
-            await axios.post(`http://localhost:5000/api/playlists/${selected}/songs`, song, authHeaders);
+            await api.post(`/playlists/${selected}/songs`, song);
             fetchPlaylistDetail(selected);
         } catch (err) {
             console.error('Failed to add song to playlist', err);

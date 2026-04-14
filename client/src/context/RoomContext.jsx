@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { useSocket } from './SocketContext';
 
 const RoomContext = createContext();
@@ -29,7 +29,7 @@ export const RoomProvider = ({ children }) => {
 
     const fetchRoomState = async (roomId) => {
         try {
-            const res = await axios.get(`http://localhost:5000/api/room/${roomId}`);
+            const res = await api.get(`/room/${roomId}`);
             // Only update room if the name or ID changed significantly
             if (!room || room.id !== res.data.id) {
                 setRoom({ id: res.data.id, name: res.data.name });
@@ -92,7 +92,7 @@ export const RoomProvider = ({ children }) => {
 
     const joinRoom = async (name, email, phone, roomId = null) => {
         try {
-            const res = await axios.post('http://localhost:5000/api/auth/join', {
+            const res = await api.post('/auth/join', {
                 name, email, phone, room_id: roomId
             });
             localStorage.setItem('token', res.data.token);
@@ -108,7 +108,7 @@ export const RoomProvider = ({ children }) => {
     const removeSong = async (songId) => {
         if (!room) return;
         try {
-            await axios.delete(`http://localhost:5000/api/room/${room.id}/queue/${songId}`);
+            await api.delete(`/room/${room.id}/queue/${songId}`);
         } catch (err) {
             console.error('Remove song failed', err);
         }
@@ -117,7 +117,7 @@ export const RoomProvider = ({ children }) => {
     const reorderSong = async (songId, direction) => {
         if (!room) return;
         try {
-            await axios.post(`http://localhost:5000/api/room/${room.id}/reorder`, { song_id: songId, direction });
+            await api.post(`/room/${room.id}/reorder`, { song_id: songId, direction });
         } catch (err) {
             console.error('Reorder failed', err);
         }

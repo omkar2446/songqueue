@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import { useRoom } from '../context/RoomContext';
 import { Music, User, Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
 import AntigravityBackground from '../components/AntigravityBackground';
@@ -21,7 +21,7 @@ const Signup = () => {
         setLoading(true);
         setError('');
         try {
-            const res = await axios.post('http://localhost:5000/api/auth/signup', { name, email, password });
+            const res = await api.post('/auth/signup', { name, email, password });
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('user', JSON.stringify(res.data.user));
             setUser(res.data.user);
