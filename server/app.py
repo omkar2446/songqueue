@@ -120,7 +120,9 @@ def token_required(f):
         except: return jsonify({'error': 'Token invalid'}), 401
         return f(current_user_id, *args, **kwargs)
     return decorated
-
+@app.route('/')
+def home():
+    return "Song Queue API is running 🚀"
 # --- Routes ---
 @app.route('/api/playlists', methods=['GET'])
 @token_required
