@@ -49,11 +49,14 @@ export const RoomProvider = ({ children }) => {
             } else {
                 setCurrentSong(null);
             }
+            return true;
         } catch (err) {
             console.error('Failed to fetch room state', err);
             if (err.response?.status === 404) {
                 setRoom(null); // Clear room state if it doesn't exist on server
+                return false;
             }
+            return true; // Assume transient error for others
         }
     };
 

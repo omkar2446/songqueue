@@ -44,6 +44,7 @@ const RoomDashboard = () => {
     const [isDevicesOpen, setIsDevicesOpen] = useState(false);
     const [isEQOpen, setIsEQOpen] = useState(false);
     const [playlistSong, setPlaylistSong] = useState(null);
+    const [roomNotFound, setRoomNotFound] = useState(false);
 
     const openSearchWith = (tab) => {
         setSearchDefaultTab(tab);
@@ -51,8 +52,18 @@ const RoomDashboard = () => {
     };
 
     useEffect(() => {
-        if (!user) navigate('/');
-        if (!room) fetchRoomState(room_id);
+        if (!user) {
+            navigate('/');
+            return;
+        }
+        
+        const initRoom = async () => {
+            if (!room) {
+                const success = await fetchRoomState(room_id);
+                if (!success) setRoomNotFound(true);
+            }
+        };
+        initRoom();
     }, [room_id, user, room]);
 
     useEffect(() => {
@@ -174,15 +185,35 @@ const RoomDashboard = () => {
                 <div className="flex-1 p-8 flex flex-col gap-8 overflow-y-auto custom-scrollbar">
                     {/* Hero Player Area */}
                     <div className="glass-card aspect-video w-full max-w-4xl mx-auto flex items-center justify-center relative group overflow-hidden shadow-[0_0_50px_rgba(59,130,246,0.1)]">
-                        <MusicPlayer />
-                        {/* Progress Bar */}
-                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 group-hover:h-2 transition-all">
-                            <motion.div
-                                className="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"
-                                animate={{ width: `${(playbackTime / (duration || 1)) * 100}%` }}
-                                transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
-                            />
-                        </div>
+                        {roomNotFound ? (
+                            <div className="flex flex-col items-center gap-6 p-12 text-center">
+                                <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+                                    <Trash2 size={40} className="text-red-400" />
+                                </div>
+                                <div className="space-y-2">
+                                    <h2 className="text-2xl font-black tracking-tight">Room Expired</h2>
+                                    <p className="text-gray-500 text-sm max-w-xs">This room no longer exists on the server. It may have been deleted after inactivity.</p>
+                                </div>
+                                <button 
+                                    onClick={() => navigate('/')}
+                                    className="px-8 py-3 bg-white text-black font-black rounded-2xl hover:scale-105 transition-all shadow-xl"
+                                >
+                                    Go Back Home
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <MusicPlayer />
+                                {/* Progress Bar */}
+                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 group-hover:h-2 transition-all">
+                                    <motion.div
+                                        className="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"
+                                        animate={{ width: `${(playbackTime / (duration || 1)) * 100}%` }}
+                                        transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
+                                    />
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Advanced Playback Controls */}
