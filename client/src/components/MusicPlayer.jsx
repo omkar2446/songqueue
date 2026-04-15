@@ -1,10 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import YouTube from 'react-youtube';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoom } from '../context/RoomContext';
 import { useSocket } from '../context/SocketContext';
 import { Music2 } from 'lucide-react';
-import { BASE_URL } from '../services/api';
+import api, { BASE_URL } from '../services/api';
 
 // EQ frequency centres matching EqualizerPanel
 const EQ_FREQS = [60, 250, 1000, 4000, 16000];
@@ -14,55 +13,42 @@ const MusicPlayer = () => {
         currentSong, queue, isPlaying, setIsPlaying,
         playbackTime, setPlaybackTime, duration, setDuration,
         volume, playbackRate,
-        eqBands, normalizeVolume, crossfadeDuration
+        eqBands, normalizeVolume
     } = useRoom();
+    
     const socket = useSocket();
-
     const [isBuffering, setIsBuffering] = useState(false);
-
+    
+    // Core references
     const audioRef = useRef(null);
-    const nextAudio = useRef(null); 
     const audioCtx = useRef(null);
     const sourceNode = useRef(null);
     const eqNodes = useRef([]);
     const compressor = useRef(null);
     const gainNode = useRef(null);
+    const lastSongId = useRef(null);
 
-    /* ── Build / rebuild Web Audio chain ─────────────────── */
-    const buildAudioChain = () => {
+    /* ── Audio Graph Setup ─────────────────── */
+    const initAudioGraph = useCallback(() => {
         if (!audioRef.current) return;
         
-        // Ensure AudioContext exists
         if (!audioCtx.current) {
             audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
         }
         
         const ctx = audioCtx.current;
 
-        // CRITICAL FIX: Only create MediaElementSourceNode ONCE for each audio element.
-        // If we already have a sourceNode, and it's connected to this EXACT element, skip creation.
-        // However, since the <audio> tag has a 'key', it is destroyed and recreated on song change.
-        // So we usually need a new sourceNode when the element changes.
-        // We use a custom property on the element to track if it's already "sourced".
-        if (audioRef.current._hasSourceNode && sourceNode.current) {
-            console.log("Audio element already has a source node, skipping recreation.");
-        } else {
-            if (sourceNode.current) {
-                try { sourceNode.current.disconnect(); } catch(e){}
-            }
+        // Ensure single source node per audio element
+        if (!sourceNode.current) {
             sourceNode.current = ctx.createMediaElementSource(audioRef.current);
-            audioRef.current._hasSourceNode = true;
         }
 
-        // Always rebuild the rest of the chain (filters, compressor, etc.)
-        // because eqBands or normalizeVolume might have changed.
-        
-        // Cleanup old chain
+        // Cleanup old nodes
         eqNodes.current.forEach(f => { try { f.disconnect(); } catch(e){} });
         if (compressor.current) { try { compressor.current.disconnect(); } catch(e){} }
         if (gainNode.current) { try { gainNode.current.disconnect(); } catch(e){} }
 
-        // Create Filters
+        // Filters
         eqNodes.current = EQ_FREQS.map((freq, i) => {
             const f = ctx.createBiquadFilter();
             f.type = i === 0 ? 'lowshelf' : i === EQ_FREQS.length - 1 ? 'highshelf' : 'peaking';
@@ -71,7 +57,7 @@ const MusicPlayer = () => {
             return f;
         });
 
-        // Create Compressor for Volume Normalization
+        // Limiter/Normalize
         compressor.current = ctx.createDynamicsCompressor();
         compressor.current.threshold.value = -24;
         compressor.current.knee.value = 30;
@@ -79,77 +65,89 @@ const MusicPlayer = () => {
         compressor.current.attack.value = 0.003;
         compressor.current.release.value = 0.25;
 
-        // Create Main Gain
+        // Master Gain
         gainNode.current = ctx.createGain();
-        gainNode.current.gain.value = 1;
+        gainNode.current.gain.value = volume / 100;
 
-        // Wire it up: Source -> EQ[0] -> ... -> EQ[n] -> (Compressor) -> Gain -> Destination
+        // Wiring
         let node = sourceNode.current;
-        eqNodes.current.forEach(f => { 
-            node.connect(f); 
-            node = f; 
-        });
-
-        const lastNode = normalizeVolume ? compressor.current : gainNode.current;
-        node.connect(lastNode);
+        eqNodes.current.forEach(f => { node.connect(f); node = f; });
         
         if (normalizeVolume) {
+            node.connect(compressor.current);
             compressor.current.connect(gainNode.current);
+        } else {
+            node.connect(gainNode.current);
         }
         
         gainNode.current.connect(ctx.destination);
+    }, [eqBands, normalizeVolume, volume]);
+
+    /* ── Load Song URL Logic ─────────────────── */
+    const loadSong = async () => {
+        if (!currentSong || !audioRef.current) return;
+        
+        const audio = audioRef.current;
+        setIsBuffering(true);
+
+        try {
+            let finalSrc = "";
+            if (currentSong.source === 'youtube') {
+                const res = await api.get(`/yt/stream/${currentSong.source_id}`);
+                if (res.data.success && res.data.audio_url) {
+                    finalSrc = res.data.audio_url;
+                } else {
+                    throw new Error("Could not get stream URL");
+                }
+            } else if (currentSong.source === 'file') {
+                finalSrc = `${BASE_URL}/uploads/${currentSong.source_id}`;
+            } else {
+                finalSrc = currentSong.source_id;
+            }
+
+            // Set source and verify graph
+            if (audio.src !== finalSrc) {
+                audio.src = finalSrc;
+                lastSongId.current = currentSong.id;
+                initAudioGraph(); // Ensure graph is connected after src change
+                audio.load();
+            }
+        } catch (err) {
+            console.error("Failed to load song src:", err);
+            setIsBuffering(false);
+        }
     };
 
-    useEffect(() => {
-        eqNodes.current.forEach((f, i) => {
-            if (f) f.gain.value = eqBands[i] || 0;
-        });
-    }, [eqBands]);
+    /* ── Effects ─────────────────────────────── */
 
+    // Sync volume/rate without re-init
     useEffect(() => {
-        const sourcesWithAudio = ['file', 'youtube', 'direct'];
-        if (sourcesWithAudio.includes(currentSong?.source) && audioCtx.current) {
-            const ctx = audioCtx.current;
-            if (sourceNode.current) {
-                sourceNode.current.disconnect();
-                eqNodes.current.forEach(f => f.disconnect());
-                compressor.current.disconnect();
-                gainNode.current.disconnect();
-                
-                let node = sourceNode.current;
-                eqNodes.current.forEach(f => { node.connect(f); node = f; });
-                node.connect(normalizeVolume ? compressor.current : gainNode.current);
-                if (normalizeVolume) compressor.current.connect(gainNode.current);
-                gainNode.current.connect(ctx.destination);
-            }
+        if (gainNode.current) gainNode.current.gain.value = volume / 100;
+        if (audioRef.current) audioRef.current.playbackRate = playbackRate;
+    }, [volume, playbackRate]);
+
+    // Handle Song Change
+    useEffect(() => {
+        if (currentSong?.id !== lastSongId.current) {
+            loadSong();
         }
-    }, [normalizeVolume]);
+    }, [currentSong?.id]);
 
-
+    // Handle Play/Pause
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
-        buildAudioChain();
         
         if (isPlaying) {
-            if (audioCtx.current?.state === 'suspended') {
-                audioCtx.current.resume();
-            }
-            
-            // Handle play promise to avoid AbortError when interrupted by pause
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    if (error.name !== 'AbortError') {
-                        console.warn('Autoplay blocked:', error);
-                    }
-                });
-            }
+            if (audioCtx.current?.state === 'suspended') audioCtx.current.resume();
+            const p = audio.play();
+            if (p) p.catch(e => console.warn("Play blocked:", e));
         } else {
             audio.pause();
         }
-    }, [isPlaying, currentSong?.id]);
+    }, [isPlaying]);
 
+    // Sync Time
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -158,141 +156,54 @@ const MusicPlayer = () => {
         }
     }, [playbackTime]);
 
-    useEffect(() => {
-        if (audioRef.current) {
-            audioRef.current.volume = volume / 100;
-            audioRef.current.playbackRate = playbackRate;
-        }
-    }, [volume, playbackRate]);
-
-    const { room, user } = useRoom();
-    const lastSyncTime = useRef(0);
-
     const onEnd = () => {
-        if (socket && room?.id) {
-            socket.emit('playback_control', { room_id: room.id, action: 'next' });
+        const room_id = currentSong?.room_id; // Added fallback
+        if (socket && room_id) {
+            socket.emit('playback_control', { room_id, action: 'next' });
         }
     };
 
     if (!currentSong) {
         return (
-            <div className="flex flex-col items-center justify-center p-20 text-white/20 select-none">
-                <div className="w-24 h-24 border-2 border-dashed border-white/5 rounded-[32px] flex items-center justify-center mb-6">
-                    <Music2 size={32} />
-                </div>
-                <h3 className="font-bold text-lg mb-2 text-white/40 font-display">Queue is empty</h3>
-                <p className="text-xs max-w-[180px] text-center leading-relaxed">Add tracks to start the session. Music will sync across all devices.</p>
+            <div className="flex flex-col items-center justify-center p-20 text-white/20">
+                <Music2 size={48} className="mb-4 opacity-10" />
+                <p className="font-bold text-sm">Add a song to start</p>
             </div>
         );
     }
 
-    const renderVisualizer = () => {
-        const sourceColor = currentSong.source === 'youtube' ? 'from-red-600 to-orange-600' : 
-                           currentSong.source === 'file' ? 'from-blue-600 to-violet-600' :
-                           'from-violet-600 to-pink-600';
-        
-        const glowColor = currentSong.source === 'youtube' ? 'shadow-red-500/20' : 
-                         currentSong.source === 'file' ? 'shadow-blue-500/20' :
-                         'shadow-violet-500/20';
-
-        return (
+    return (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-10">
+            {/* Visualizer Area */}
             <div className="relative group p-8">
-                {/* Glow Aura */}
                 <motion.div 
-                    animate={isPlaying && !isBuffering ? { 
-                        opacity: [0.3, 0.6, 0.3],
-                        scale: [1, 1.15, 1] 
-                    } : { opacity: 0.1 }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                    className={`absolute inset-0 blur-[100px] rounded-full bg-gradient-to-br ${sourceColor} opacity-50`}
+                    animate={isPlaying && !isBuffering ? { opacity: [0.2, 0.4, 0.2], scale: [1, 1.1, 1] } : { opacity: 0.1 }}
+                    transition={{ duration: 4, repeat: Infinity }}
+                    className="absolute inset-0 blur-[100px] rounded-full bg-blue-500/30"
                 />
-
-                {/* Main Cover */}
                 <motion.div
                     animate={isPlaying && !isBuffering ? { rotate: 360 } : {}}
-                    transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                    className={`relative w-48 h-48 md:w-72 md:h-72 rounded-full p-1.5 bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl ${glowColor} flex items-center justify-center overflow-hidden z-10 transition-transform duration-500 hover:scale-105`}
+                    transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+                    className="relative w-64 h-64 md:w-80 md:h-80 rounded-full border border-white/10 shadow-2xl overflow-hidden z-10 p-1 bg-white/5 backdrop-blur-md"
                 >
-                    <div className="absolute inset-0 bg-black/40 z-10" />
-                    {currentSong.thumbnail ? (
-                        <img 
-                            src={currentSong.thumbnail} 
-                            alt="" 
-                            className="absolute inset-0 w-full h-full object-cover grayscale-[10%] brightness-75 scale-110" 
-                        />
-                    ) : (
-                        <div className={`absolute inset-0 bg-gradient-to-br ${sourceColor} opacity-80`} />
-                    )}
-
-                    {/* Vinyl Center Hole Decor */}
-                    <div className="w-14 h-14 bg-black rounded-full border-[10px] border-white/10 z-20 flex items-center justify-center shadow-inner">
-                        <div className="w-3 h-3 bg-white/20 rounded-full" />
-                    </div>
-
-                    {/* Buffer Overlay */}
+                    <img src={currentSong.thumbnail} alt="" className="w-full h-full object-cover rounded-full opacity-60" />
                     <AnimatePresence>
                         {isBuffering && (
-                            <motion.div 
-                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-30 bg-black/60 backdrop-blur-xl flex flex-col items-center justify-center gap-3"
-                            >
-                                <motion.div 
-                                    animate={{ rotate: 360 }} 
-                                    transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                                    className="w-16 h-16 border-4 border-white/10 border-t-white rounded-full" 
-                                />
-                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Exploring</span>
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
                             </motion.div>
                         )}
                     </AnimatePresence>
                 </motion.div>
-
-                {/* Source Badge */}
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 px-5 py-2 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-full flex items-center gap-2.5 shadow-2xl">
-                    <div className={`w-2 h-2 rounded-full animate-pulse ${currentSong.source === 'youtube' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-blue-500 shadow-[0_0_10px_#3b82f6]'}`} />
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-white/90">{currentSong.source}</span>
-                </div>
             </div>
-        );
-    };
 
-    return (
-        <div className="w-full h-full flex flex-col items-center justify-center gap-10 transition-all duration-700">
-            {renderVisualizer()}
-
-            <div className="text-center space-y-3 z-10">
-                <motion.h2 
-                    initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
-                    key={currentSong.id}
-                    className="text-3xl md:text-5xl font-black tracking-tighter text-white max-w-xl mx-auto line-clamp-2 px-4 leading-[0.9]"
-                >
-                    {currentSong.title}
-                </motion.h2>
-                <motion.p 
-                    initial={{ opacity: 0 }} animate={{ opacity: 0.6 }}
-                    className="text-gray-400 text-base md:text-lg font-bold tracking-tight"
-                >
-                    {currentSong.artist}
-                </motion.p>
-                {currentSong.added_by && (
-                    <motion.div 
-                        initial={{ opacity: 0 }} animate={{ opacity: 0.3 }}
-                        className="text-[10px] uppercase tracking-[0.3em] font-black text-gray-400 pt-4"
-                    >
-                        CURATED BY {currentSong.added_by}
-                    </motion.div>
-                )}
+            <div className="text-center px-4 max-w-2xl">
+                <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter line-clamp-2">{currentSong.title}</h2>
+                <p className="text-gray-400 mt-2 font-bold">{currentSong.artist}</p>
             </div>
 
             <audio
-                key={currentSong.id}
                 ref={audioRef}
-                crossOrigin="anonymous"
-                src={currentSong.source === 'youtube' 
-                    ? `${BASE_URL}/api/yt/stream/${currentSong.source_id}`
-                    : currentSong.source === 'file'
-                    ? `${BASE_URL}/uploads/${currentSong.source_id}`
-                    : currentSong.source_id}
                 onLoadedMetadata={e => { setDuration?.(e.target.duration); setIsBuffering(false); }}
                 onTimeUpdate={e => setPlaybackTime(e.target.currentTime)}
                 onEnded={onEnd}
@@ -300,9 +211,8 @@ const MusicPlayer = () => {
                 onCanPlay={() => setIsBuffering(false)}
                 onPlaying={() => setIsBuffering(false)}
                 onError={(e) => {
-                    console.error("Audio error details:", e.target.error);
+                    console.error("Audio error:", e.target.error);
                     setIsBuffering(false);
-                    // If it's a 403 or 500, we might want to try to skip or alert
                 }}
             />
         </div>

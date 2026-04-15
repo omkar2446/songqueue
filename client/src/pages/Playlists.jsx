@@ -213,9 +213,9 @@ const Playlists = () => {
                                 <p className="text-sm text-gray-500 font-medium italic">No playlists yet</p>
                             </div>
                         ) : (
-                            playlists.map(p => (
+                            playlists.map((p, i) => (
                                 <motion.div
-                                    key={p.id}
+                                    key={p.id || i}
                                     whileHover={{ x: 4 }}
                                     onClick={() => setSelected(p.id)}
                                     className={`p-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all group ${selected === p.id ? 'bg-violet-500/20 border-violet-500/30 border' : 'bg-white/5 border border-white/5 hover:bg-white/10'}`}
@@ -291,7 +291,7 @@ const Playlists = () => {
                                         </div>
                                     ) : (
                                         detail?.songs?.map((s, i) => (
-                                            <div key={s.id} className="group p-3 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition-colors">
+                                            <div key={s.id || i} className="group p-3 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition-colors">
                                                 <span className="w-4 text-center text-[10px] font-mono text-gray-600 group-hover:hidden">{i + 1}</span>
                                                 <button onClick={() => addToRoom(s)} className="hidden group-hover:flex w-4 items-center justify-center text-violet-400">
                                                     <Play size={12} fill="currentColor" />
