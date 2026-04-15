@@ -431,11 +431,16 @@ def on_join(data):
     
     join_room(room_id)
     
+    # Safety check for valid user_id
+    if not user_id or user_id == "undefined" or user_id == "null":
+        print(f"WARNING: Rejected join with invalid user_id: {user_id}")
+        return
+
     if room_id not in active_users:
         active_users[room_id] = []
     
-    # Add if not already there
-    if not any(u['id'] == user_id for u in active_users[room_id]):
+    # Check if user already in list (avoid duplicates with empty/bad IDs)
+    if not any(u.get('id') == user_id for u in active_users[room_id]):
         active_users[room_id].append({'id': user_id, 'name': user_name})
     
     emit('user_list', active_users[room_id], room=room_id)
@@ -569,7 +574,7 @@ def handle_playback(data):
                             try:
                                 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
                                 ydl_opts = {
-                                    'format': 'bestaudio/best',
+                                    'format': 'bestaudio[ext=m4a]/bestaudio/best', # Keep in sync with stream
                                     'quiet': True,
                                     'no_warnings': True,
                                     'nocheckcertificate': True,

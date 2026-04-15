@@ -58,13 +58,13 @@ const RoomDashboard = () => {
         }
         
         const initRoom = async () => {
-            if (!room) {
+            if (!room && !roomNotFound) {
                 const success = await fetchRoomState(room_id);
                 if (!success) setRoomNotFound(true);
             }
         };
         initRoom();
-    }, [room_id, user, room]);
+    }, [room_id, user, room, roomNotFound]);
 
     useEffect(() => {
         if (socket) {
