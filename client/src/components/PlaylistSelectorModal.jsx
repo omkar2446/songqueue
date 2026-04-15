@@ -103,7 +103,7 @@ const PlaylistSelectorModal = ({ isOpen, onClose, song }) => {
                         ) : (
                             playlists.map(p => (
                                 <button
-                                    key={p.id}
+                                    key={p.id || p.name}
                                     onClick={() => addToPlaylist(p.id)}
                                     disabled={adding === p.id}
                                     className="w-full p-4 bg-white/5 hover:bg-white/10 rounded-2xl flex items-center justify-between transition-all group active:scale-[0.98]"

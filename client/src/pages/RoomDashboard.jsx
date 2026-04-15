@@ -166,7 +166,7 @@ const RoomDashboard = () => {
                     </button>
                     <div className="flex -space-x-2">
                         {users?.slice(0, 4).map((u, i) => (
-                            <div key={u.id} className="w-8 h-8 rounded-full bg-blue-500 border-2 border-[#0c0b0f] flex items-center justify-center text-[10px] font-bold uppercase" title={u.name}>
+                            <div key={u.id || i} className="w-8 h-8 rounded-full bg-blue-500 border-2 border-[#0c0b0f] flex items-center justify-center text-[10px] font-bold uppercase" title={u.name}>
                                 {u.name.substring(0, 2)}
                             </div>
                         ))}
@@ -299,7 +299,7 @@ const RoomDashboard = () => {
                     <div className="flex-1 overflow-y-auto p-4 space-y-2">
                         {queue.map((song, i) => (
                             <motion.div
-                                key={song.id}
+                                key={song.id || i}
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: i * 0.05 }}
