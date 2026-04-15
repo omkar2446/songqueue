@@ -91,7 +91,7 @@ const DevicesPanel = ({ isOpen, onClose }) => {
                             ) : (
                                 (users || []).map((u, i) => (
                                     <motion.div
-                                        key={u.id || i}
+                                        key={u.id || `dev-${i}`}
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         className="flex items-center gap-3 p-3 rounded-xl bg-white/5 group"

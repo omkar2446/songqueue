@@ -199,7 +199,7 @@ const PlaybackControls = ({ onOpenEQ }) => {
                         {isPlaying && currentSong && (
                             <div className="absolute inset-0 bg-black/40 flex items-end justify-center pb-1 gap-px">
                                 {[1,2,3,4].map(i => (
-                                    <motion.div key={i}
+                                    <motion.div key={`bar-${i}`}
                                         className="w-0.5 bg-white rounded-full"
                                         animate={{ height: ['4px','12px','4px'] }}
                                         transition={{ duration: 0.5 + i*0.1, repeat: Infinity, delay: i*0.1 }}

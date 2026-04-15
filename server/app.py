@@ -770,8 +770,9 @@ def get_youtube_url(video_id):
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            'user_agent': UA,
-            'source_address': '0.0.0.0', # Force IPv4 to avoid Render network issues
+            'socket_timeout': 10,
+            'source_address': '0.0.0.0', 
+            'geo_bypass': True,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
