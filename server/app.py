@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import uuid
 import datetime
@@ -564,19 +567,28 @@ def handle_playback(data):
                             print(f"Prefetching YouTube URL for: {v_id}")
                             import yt_dlp
                             try:
+                                UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
                                 ydl_opts = {
                                     'format': 'bestaudio/best',
                                     'quiet': True,
                                     'no_warnings': True,
                                     'nocheckcertificate': True,
-                                    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                                    'user_agent': UA,
+                                    'referer': 'https://www.youtube.com/',
+                                    'geo_bypass': True,
                                 }
                                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                                     info = ydl.extract_info(f"https://www.youtube.com/watch?v={v_id}", download=False)
-                                    url_cache[v_id] = {'url': info.get('url'), 'expires': time.time() + 7200}
-                                    print(f"Prefetched: {v_id}")
+                                    audio_url = info.get('url')
+                                    if not audio_url and 'formats' in info:
+                                        audio_formats = [f for f in info['formats'] if f.get('vcodec') == 'none']
+                                        if audio_formats: audio_url = audio_formats[0]['url']
+                                    
+                                    if audio_url:
+                                        url_cache[v_id] = {'url': audio_url, 'expires': time.time() + 7200}
+                                        print(f"Prefetched: {v_id}")
                             except Exception as e:
-                                print(f"Prefetch error: {e}")
+                                print(f"Prefetch error for {v_id}: {e}")
         
         from threading import Thread
         Thread(target=prefetch_next).start()
@@ -718,6 +730,9 @@ def stream_youtube(video_id):
     retry_count = 0
     audio_url = None
 
+    # Use a more robust user agent
+    UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+
     while retry_count < 2:
         cache_hit = url_cache.get(video_id)
         if cache_hit and cache_hit['expires'] > now:
@@ -727,22 +742,36 @@ def stream_youtube(video_id):
             print(f"DEBUG: Extracting fresh URL for {video_id}...")
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             ydl_opts = {
-                'format': 'ba[ext=m4a]/ba/b[ext=mp4]/b', # Force Best Audio M4A
+                'format': 'bestaudio/best', # More flexible format
                 'quiet': True,
                 'no_warnings': True,
                 'nocheckcertificate': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'user_agent': UA,
                 'referer': 'https://www.youtube.com/',
                 'geo_bypass': True,
+                'extract_flat': False,
+                'skip_download': True,
             }
             try:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(video_url, download=False)
+                    # Try to get the direct URL from formats if 'url' is not in root
                     audio_url = info.get('url')
+                    if not audio_url and 'formats' in info:
+                        # Find best audio-only format
+                        audio_formats = [f for f in info['formats'] if f.get('vcodec') == 'none']
+                        if audio_formats:
+                            audio_url = audio_formats[0]['url']
+                    
                     if audio_url:
                         url_cache[video_id] = {'url': audio_url, 'expires': now + 7200}
+                        print(f"DEBUG: Successfully extracted URL for {video_id}")
             except Exception as e:
                 print(f"ERROR: Extraction failed for {video_id}: {e}")
+                if retry_count == 0:
+                    retry_count += 1
+                    time.sleep(1) # Small delay before retry
+                    continue
                 return jsonify({'error': 'Extraction Failed', 'details': str(e)}), 500
 
         if not audio_url:
@@ -750,50 +779,61 @@ def stream_youtube(video_id):
 
         # Attempt to connect to YouTube CDN
         try:
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Referer': 'https://www.youtube.com/'}
+            headers = {
+                'User-Agent': UA,
+                'Referer': 'https://www.youtube.com/',
+                'Origin': 'https://www.youtube.com'
+            }
             range_header = request.headers.get('Range')
             if range_header:
                 headers['Range'] = range_header
             
-            req = requests.get(audio_url, stream=True, timeout=15, headers=headers)
+            # Use a longer timeout for the initial connection
+            req = requests.get(audio_url, stream=True, timeout=20, headers=headers)
             
-            # If 403, the URL likely expired. Clear cache and retry.
-            if req.status_code in (403, 401) and retry_count == 0:
+            # If 403/410, the URL likely expired or session changed. Clear cache and retry.
+            if req.status_code in (403, 410, 401) and retry_count == 0:
                 print(f"DEBUG: CDN returned {req.status_code}, invalidating cache and retrying...")
                 if video_id in url_cache: del url_cache[video_id]
                 retry_count += 1
                 continue
             
             if req.status_code >= 400:
-                print(f"ERROR: YouTube CDN returned {req.status_code}")
+                print(f"ERROR: YouTube CDN returned {req.status_code} for {video_id}")
                 return f"CDN Error: {req.status_code}", req.status_code
 
             # Success! Break the retry loop
             break
         except Exception as e:
-            print(f"ERROR: Connection to CDN failed: {e}")
+            print(f"ERROR: Connection to CDN failed for {video_id}: {e}")
             retry_count += 1
-            if retry_count >= 2: return str(e), 500
+            if retry_count >= 2: return f"CDN Connection Failed: {str(e)}", 500
 
     def generate():
         try:
-            for chunk in req.iter_content(chunk_size=4096):
+            # Iterating over the content. In some environments, chunk_size might need adjustment.
+            for chunk in req.iter_content(chunk_size=16384): # Larger chunks for better streaming
                 if chunk: yield chunk
         except Exception as e:
-            print(f"ERROR: Stream interrupted: {e}")
+            print(f"ERROR: Stream interrupted for {video_id}: {e}")
 
+    # Build response with all necessary headers for seeking/streaming
     resp = Response(
         stream_with_context(generate()),
         status=req.status_code,
-        content_type=req.headers.get('content-type', 'audio/mp4')
+        content_type=req.headers.get('content-type', 'audio/mpeg') # Default to mpeg/mp4
     )
     
-    # Standard streaming headers
-    for h in ['Content-Range', 'Content-Length', 'Accept-Ranges']:
+    # Copy essential headers from the CDN response
+    for h in ['Content-Range', 'Content-Length', 'Accept-Ranges', 'Content-Type']:
         if h in req.headers: resp.headers[h] = req.headers[h]
     
+    # CORS and Caching
     resp.headers['Access-Control-Allow-Origin'] = '*'
-    resp.headers['Cache-Control'] = 'no-cache'
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    
     return resp
 
 # --- Spotify -> YouTube Full Playback Resolver ---

@@ -299,6 +299,11 @@ const MusicPlayer = () => {
                 onWaiting={() => setIsBuffering(true)}
                 onCanPlay={() => setIsBuffering(false)}
                 onPlaying={() => setIsBuffering(false)}
+                onError={(e) => {
+                    console.error("Audio error details:", e.target.error);
+                    setIsBuffering(false);
+                    // If it's a 403 or 500, we might want to try to skip or alert
+                }}
             />
         </div>
     );

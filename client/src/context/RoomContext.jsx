@@ -51,6 +51,9 @@ export const RoomProvider = ({ children }) => {
             }
         } catch (err) {
             console.error('Failed to fetch room state', err);
+            if (err.response?.status === 404) {
+                setRoom(null); // Clear room state if it doesn't exist on server
+            }
         }
     };
 
