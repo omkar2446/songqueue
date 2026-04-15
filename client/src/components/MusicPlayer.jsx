@@ -1,183 +1,113 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import YouTube from 'react-youtube';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoom } from '../context/RoomContext';
 import { useSocket } from '../context/SocketContext';
 import { Music2 } from 'lucide-react';
-import api, { BASE_URL } from '../services/api';
-
-// EQ frequency centres matching EqualizerPanel
-const EQ_FREQS = [60, 250, 1000, 4000, 16000];
 
 const MusicPlayer = () => {
-    const {
-        currentSong, queue, isPlaying, setIsPlaying,
-        playbackTime, setPlaybackTime, duration, setDuration,
-        volume, playbackRate,
-        eqBands, normalizeVolume
+    const { 
+        currentSong, isPlaying, setIsPlaying, 
+        playbackTime, setPlaybackTime, 
+        duration, setDuration,
+        volume, playbackRate 
     } = useRoom();
     
     const socket = useSocket();
+    const playerRef = useRef(null);
+    const [isPlayerReady, setIsPlayerReady] = useState(false);
     const [isBuffering, setIsBuffering] = useState(false);
-    
-    // Core references
-    const audioRef = useRef(null);
-    const audioCtx = useRef(null);
-    const sourceNode = useRef(null);
-    const eqNodes = useRef([]);
-    const compressor = useRef(null);
-    const gainNode = useRef(null);
-    const lastSongId = useRef(null);
 
-    /* ── Audio Graph Setup ─────────────────── */
-    const initAudioGraph = useCallback(() => {
-        if (!audioRef.current) return;
-        
-        if (!audioCtx.current) {
-            audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        
-        const ctx = audioCtx.current;
-
-        // Ensure single source node per audio element
-        if (!sourceNode.current) {
-            sourceNode.current = ctx.createMediaElementSource(audioRef.current);
-        }
-
-        // Cleanup old nodes
-        eqNodes.current.forEach(f => { try { f.disconnect(); } catch(e){} });
-        if (compressor.current) { try { compressor.current.disconnect(); } catch(e){} }
-        if (gainNode.current) { try { gainNode.current.disconnect(); } catch(e){} }
-
-        // Filters
-        eqNodes.current = EQ_FREQS.map((freq, i) => {
-            const f = ctx.createBiquadFilter();
-            f.type = i === 0 ? 'lowshelf' : i === EQ_FREQS.length - 1 ? 'highshelf' : 'peaking';
-            f.frequency.value = freq;
-            f.gain.value = eqBands[i] || 0;
-            return f;
-        });
-
-        // Limiter/Normalize
-        compressor.current = ctx.createDynamicsCompressor();
-        compressor.current.threshold.value = -24;
-        compressor.current.knee.value = 30;
-        compressor.current.ratio.value = 4;
-        compressor.current.attack.value = 0.003;
-        compressor.current.release.value = 0.25;
-
-        // Master Gain
-        gainNode.current = ctx.createGain();
-        gainNode.current.gain.value = volume / 100;
-
-        // Wiring
-        let node = sourceNode.current;
-        eqNodes.current.forEach(f => { node.connect(f); node = f; });
-        
-        if (normalizeVolume) {
-            node.connect(compressor.current);
-            compressor.current.connect(gainNode.current);
-        } else {
-            node.connect(gainNode.current);
-        }
-        
-        gainNode.current.connect(ctx.destination);
-    }, [eqBands, normalizeVolume, volume]);
-
-    /* ── Load Song URL Logic ─────────────────── */
-    const loadSong = async () => {
-        if (!currentSong || !audioRef.current) return;
-        
-        const audio = audioRef.current;
-        setIsBuffering(true);
-
-        try {
-            let finalSrc = "";
-            if (currentSong.source === 'youtube') {
-                const res = await api.get(`/yt/stream/${currentSong.source_id}`);
-                if (res.data.success && res.data.audio_url) {
-                    finalSrc = res.data.audio_url;
-                } else {
-                    throw new Error("Could not get stream URL");
-                }
-            } else if (currentSong.source === 'file') {
-                finalSrc = `${BASE_URL}/uploads/${currentSong.source_id}`;
-            } else {
-                finalSrc = currentSong.source_id;
-            }
-
-            // Set source and verify graph
-            if (audio.src !== finalSrc) {
-                audio.src = finalSrc;
-                lastSongId.current = currentSong.id;
-                initAudioGraph(); // Ensure graph is connected after src change
-                audio.load();
-            }
-        } catch (err) {
-            const msg = err.response?.data?.error || err.message;
-            console.error("Failed to load song src:", msg);
-            setIsBuffering(false);
-        }
+    // YouTube Options
+    const opts = {
+        height: '0',
+        width: '0',
+        playerVars: {
+            autoplay: 1,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            origin: window.location.origin,
+            rel: 0
+        },
     };
 
-    /* ── Effects ─────────────────────────────── */
-
-    // Sync volume/rate without re-init
+    // ── Sync Socket Changes ──
     useEffect(() => {
-        if (gainNode.current) gainNode.current.gain.value = volume / 100;
-        if (audioRef.current) audioRef.current.playbackRate = playbackRate;
-    }, [volume, playbackRate]);
+        if (!socket || !isPlayerReady || !playerRef.current) return;
 
-    // Handle Song Change
-    useEffect(() => {
-        if (currentSong?.id !== lastSongId.current) {
-            loadSong();
-        }
-    }, [currentSong?.id]);
-
-    // Handle Play/Pause
-    const playPromise = useRef(null);
-    useEffect(() => {
-        const audio = audioRef.current;
-        if (!audio) return;
-        
-        const tryPlay = async () => {
-            try {
-                if (audioCtx.current?.state === 'suspended') await audioCtx.current.resume();
-                playPromise.current = audio.play();
-                await playPromise.current;
-            } catch (e) {
-                if (e.name !== 'AbortError') console.warn("Play blocked:", e);
-            } finally {
-                playPromise.current = null;
-            }
+        const handlePlaybackUpdate = (data) => {
+            const player = playerRef.current;
+            if (data.action === 'play') player.playVideo();
+            if (data.action === 'pause') player.pauseVideo();
+            if (data.action === 'seek') player.seekTo(parseFloat(data.value));
         };
 
-        if (isPlaying) {
-            tryPlay();
-        } else {
-            if (playPromise.current) {
-                playPromise.current.then(() => audio.pause()).catch(() => {});
-            } else {
-                audio.pause();
+        socket.on('playback_update', handlePlaybackUpdate);
+        return () => socket.off('playback_update');
+    }, [socket, isPlayerReady]);
+
+    // ── Internal State Sync ──
+    useEffect(() => {
+        if (!isPlayerReady || !playerRef.current) return;
+        const player = playerRef.current;
+        
+        // Sync Status
+        if (isPlaying) player.playVideo();
+        else player.pauseVideo();
+        
+        // Sync Time (Allow 2s drift)
+        const currentSeconds = player.getCurrentTime();
+        if (Math.abs(currentSeconds - playbackTime) > 2) {
+            player.seekTo(playbackTime);
+        }
+    }, [isPlaying, playbackTime, isPlayerReady]);
+
+    // ── Volume & Speed Sync ──
+    useEffect(() => {
+        if (isPlayerReady && playerRef.current) {
+            playerRef.current.setVolume(volume);
+            playerRef.current.setPlaybackRate(playbackRate);
+        }
+    }, [volume, playbackRate, isPlayerReady]);
+
+    // ── Player Handlers ──
+    const onReady = (event) => {
+        playerRef.current = event.target;
+        setIsPlayerReady(true);
+        setDuration(event.target.getDuration());
+        if (isPlaying) event.target.playVideo();
+    };
+
+    const onError = (e) => {
+        console.error("YouTube Player Error:", e.data);
+        setIsBuffering(false);
+    };
+
+    const onStateChange = (event) => {
+        // -1: unstarted, 0: ended, 1: playing, 2: paused, 3: buffering, 5: cued
+        setIsBuffering(event.data === 3);
+        
+        if (event.data === 0) { // ENDED
+            if (socket) {
+                socket.emit('playback_control', { 
+                    room_id: currentSong?.room_id || window.location.pathname.split('/').pop(), 
+                    action: 'next' 
+                });
             }
         }
-    }, [isPlaying]);
-
-    // Sync Time
-    useEffect(() => {
-        const audio = audioRef.current;
-        if (!audio) return;
-        if (Math.abs(audio.currentTime - playbackTime) > 3) {
-            audio.currentTime = playbackTime;
-        }
-    }, [playbackTime]);
-
-    const onEnd = () => {
-        const room_id = currentSong?.room_id; // Added fallback
-        if (socket && room_id) {
-            socket.emit('playback_control', { room_id, action: 'next' });
-        }
     };
+
+    // Tracking Loop
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (isPlayerReady && playerRef.current && isPlaying) {
+                setPlaybackTime(playerRef.current.getCurrentTime());
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [isPlayerReady, isPlaying]);
 
     if (!currentSong) {
         return (
@@ -218,21 +148,17 @@ const MusicPlayer = () => {
                 <p className="text-gray-400 mt-2 font-bold">{currentSong.artist}</p>
             </div>
 
-            <audio
-                ref={audioRef}
-                crossOrigin="anonymous"
-                onLoadedMetadata={e => { setDuration?.(e.target.duration); setIsBuffering(false); }}
-                onTimeUpdate={e => setPlaybackTime(e.target.currentTime)}
-                onEnded={onEnd}
-                onWaiting={() => setIsBuffering(true)}
-                onCanPlay={() => setIsBuffering(false)}
-                onPlaying={() => setIsBuffering(false)}
-                onError={(e) => {
-                    const error = e.target.error;
-                    console.error("Audio error:", error?.message || "Format not supported");
-                    setIsBuffering(false);
-                }}
-            />
+            {/* Hidden Player Engine */}
+            <div className="hidden pointer-events-none opacity-0 overflow-hidden w-0 h-0">
+                <YouTube 
+                    key={currentSong.source_id}
+                    videoId={currentSong.source_id} 
+                    opts={opts} 
+                    onReady={onReady}
+                    onStateChange={onStateChange}
+                    onError={onError}
+                />
+            </div>
         </div>
     );
 };
