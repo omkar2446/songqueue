@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_BASE_URL || 'https://songqueue.onrender.com';
+const BASE_URL = import.meta.env.VITE_BASE_URL || (
+    typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000' 
+    : 'https://songqueue.onrender.com'
+);
 const API_BASE_URL = `${BASE_URL}/api`;
 const SOCKET_URL = BASE_URL;
 

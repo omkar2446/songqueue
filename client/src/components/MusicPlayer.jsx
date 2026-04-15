@@ -135,16 +135,31 @@ const MusicPlayer = () => {
     }, [currentSong?.id]);
 
     // Handle Play/Pause
+    const playPromise = useRef(null);
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
         
+        const tryPlay = async () => {
+            try {
+                if (audioCtx.current?.state === 'suspended') await audioCtx.current.resume();
+                playPromise.current = audio.play();
+                await playPromise.current;
+            } catch (e) {
+                if (e.name !== 'AbortError') console.warn("Play blocked:", e);
+            } finally {
+                playPromise.current = null;
+            }
+        };
+
         if (isPlaying) {
-            if (audioCtx.current?.state === 'suspended') audioCtx.current.resume();
-            const p = audio.play();
-            if (p) p.catch(e => console.warn("Play blocked:", e));
+            tryPlay();
         } else {
-            audio.pause();
+            if (playPromise.current) {
+                playPromise.current.then(() => audio.pause()).catch(() => {});
+            } else {
+                audio.pause();
+            }
         }
     }, [isPlaying]);
 
@@ -205,6 +220,7 @@ const MusicPlayer = () => {
 
             <audio
                 ref={audioRef}
+                crossOrigin="anonymous"
                 onLoadedMetadata={e => { setDuration?.(e.target.duration); setIsBuffering(false); }}
                 onTimeUpdate={e => setPlaybackTime(e.target.currentTime)}
                 onEnded={onEnd}
@@ -212,7 +228,8 @@ const MusicPlayer = () => {
                 onCanPlay={() => setIsBuffering(false)}
                 onPlaying={() => setIsBuffering(false)}
                 onError={(e) => {
-                    console.error("Audio error:", e.target.error);
+                    const error = e.target.error;
+                    console.error("Audio error:", error?.message || "Format not supported");
                     setIsBuffering(false);
                 }}
             />
