@@ -6,12 +6,18 @@ import uuid
 import datetime
 import jwt
 import requests
-from flask import Flask, request, jsonify, send_from_directory
+import logging
+import traceback
+from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_socketio import SocketIO, emit, join_room, leave_room, rooms
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -26,8 +32,16 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', logger=True, engineio_logger=True)
 CORS(app)
+
+@app.route('/')
+def health_check():
+    return jsonify({
+        "status": "online",
+        "service": "SongQueue API",
+        "timestamp": datetime.datetime.utcnow().isoformat()
+    })
 
 # --- Models ---
 class Room(db.Model):
@@ -871,8 +885,7 @@ def resolve_spotify():
         print(f"yt-dlp error: {e}")
         return jsonify({'error': f'Search failed: {str(e)}'}), 500
 
-import os
-
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host='0.0.0.0', port=port)
+    logger.info(f"Starting server on port {port}...")
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
