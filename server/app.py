@@ -771,6 +771,7 @@ def get_youtube_url(video_id):
             'no_warnings': True,
             'nocheckcertificate': True,
             'user_agent': UA,
+            'source_address': '0.0.0.0', # Force IPv4 to avoid Render network issues
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -859,6 +860,7 @@ def resolve_spotify():
             'format': 'bestaudio/best',
             'noplaylist': True,
             'skip_download': True,
+            'source_address': '0.0.0.0', # Force IPv4
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

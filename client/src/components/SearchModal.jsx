@@ -229,9 +229,9 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
 
                         {/* Tab Bar */}
                         <div className="px-6 flex gap-2 mb-6">
-                            {TABS.map(t => (
+                            {TABS.map((t, idx) => (
                                 <button
-                                    key={t.id}
+                                    key={t.id || idx}
                                     onClick={() => switchTab(t.id)}
                                     className={`flex-1 py-2.5 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${tab === t.id
                                             ? `${t.activeBg} text-white shadow-lg`
