@@ -1,24 +1,23 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, memo } from 'react';
 import YouTube from 'react-youtube';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoom } from '../context/RoomContext';
 import { useSocket } from '../context/SocketContext';
-import { Music2 } from 'lucide-react';
+import { Music2, WifiOff } from 'lucide-react';
 
 const MusicPlayer = () => {
     const { 
-        currentSong, isPlaying, setIsPlaying, 
+        currentSong, isPlaying, 
         playbackTime, setPlaybackTime, 
-        duration, setDuration,
-        volume, playbackRate 
+        setDuration, volume 
     } = useRoom();
     
     const socket = useSocket();
     const playerRef = useRef(null);
     const [isPlayerReady, setIsPlayerReady] = useState(false);
-    const [isBuffering, setIsBuffering] = useState(false);
+    const [hasError, setHasError] = useState(false);
 
-    // YouTube Options
+    // ── 1. Critical Initialization Fixes ──
     const opts = {
         height: '0',
         width: '0',
@@ -26,132 +25,125 @@ const MusicPlayer = () => {
             autoplay: 1,
             controls: 0,
             disablekb: 1,
-            fs: 0,
             modestbranding: 1,
-            origin: window.location.origin,
-            rel: 0
+            enablejsapi: 1, // Required for postMessage to work
+            origin: window.location.origin, // Dynamically match Vercel/Localhost
+            rel: 0,
+            iv_load_policy: 3,
+            widget_referrer: window.location.origin
         },
     };
 
-    // ── Sync Socket Changes ──
+    // ── 2. Handle Socket Sync (External -> Player) ──
     useEffect(() => {
         if (!socket || !isPlayerReady || !playerRef.current) return;
 
         const handlePlaybackUpdate = (data) => {
             const player = playerRef.current;
-            if (data.action === 'play') player.playVideo();
-            if (data.action === 'pause') player.pauseVideo();
-            if (data.action === 'seek') player.seekTo(parseFloat(data.value));
+            try {
+                if (data.action === 'play') player.playVideo();
+                if (data.action === 'pause') player.pauseVideo();
+                if (data.action === 'seek') player.seekTo(parseFloat(data.value), true);
+            } catch (err) {
+                console.warn("Socket sync failed: Player might be blocked by extension.");
+            }
         };
 
         socket.on('playback_update', handlePlaybackUpdate);
         return () => socket.off('playback_update');
     }, [socket, isPlayerReady]);
 
-    // ── Internal State Sync ──
+    // ── 3. Handle Local State Sync (RoomContext -> Player) ──
     useEffect(() => {
         if (!isPlayerReady || !playerRef.current) return;
         const player = playerRef.current;
         
-        // Sync Status
-        if (isPlaying) player.playVideo();
-        else player.pauseVideo();
+        // Sync Volume
+        player.setVolume(volume);
+
+        // Sync Play/Pause
+        const state = player.getPlayerState();
+        if (isPlaying && state !== 1) player.playVideo();
+        if (!isPlaying && state === 1) player.pauseVideo();
         
-        // Sync Time (Allow 2s drift)
+        // Sync Time (with 2s drift protection)
         const currentSeconds = player.getCurrentTime();
-        if (Math.abs(currentSeconds - playbackTime) > 2) {
-            player.seekTo(playbackTime);
+        if (Math.abs(currentSeconds - playbackTime) > 2.5) {
+            player.seekTo(playbackTime, true);
         }
-    }, [isPlaying, playbackTime, isPlayerReady]);
+    }, [isPlaying, playbackTime, isPlayerReady, volume]);
 
-    // ── Volume & Speed Sync ──
-    useEffect(() => {
-        if (isPlayerReady && playerRef.current) {
-            playerRef.current.setVolume(volume);
-            playerRef.current.setPlaybackRate(playbackRate);
-        }
-    }, [volume, playbackRate, isPlayerReady]);
-
-    // ── Player Handlers ──
+    // ── 4. YouTube Event Handlers ──
     const onReady = (event) => {
         playerRef.current = event.target;
         setIsPlayerReady(true);
+        setHasError(false);
         setDuration(event.target.getDuration());
-        if (isPlaying) event.target.playVideo();
+        
+        // Final check: browser autoplay policy
+        if (isPlaying) {
+            const promise = event.target.playVideo();
+            if (promise && promise.catch) {
+                promise.catch(() => console.log("Autoplay blocked: Waiting for user interaction."));
+            }
+        }
+    };
+
+    const onStateChange = (event) => {
+        // Handle Auto-Next on End
+        if (event.data === (window.YT?.PlayerState?.ENDED || 0)) {
+            socket?.emit('playback_control', { 
+                room_id: currentSong?.room_id || window.location.pathname.split('/').pop(), 
+                action: 'next' 
+            });
+        }
     };
 
     const onError = (e) => {
         console.error("YouTube Player Error:", e.data);
-        setIsBuffering(false);
+        // Error constants: 101 or 150 mean embedding is restricted
+        if (e.data === 150 || e.data === 101) setHasError(true);
     };
 
-    const onStateChange = (event) => {
-        // -1: unstarted, 0: ended, 1: playing, 2: paused, 3: buffering, 5: cued
-        setIsBuffering(event.data === 3);
-        
-        if (event.data === 0) { // ENDED
-            if (socket) {
-                socket.emit('playback_control', { 
-                    room_id: currentSong?.room_id || window.location.pathname.split('/').pop(), 
-                    action: 'next' 
-                });
-            }
-        }
-    };
-
-    // Tracking Loop
-    useEffect(() => {
-        const interval = setInterval(() => {
-            if (isPlayerReady && playerRef.current && isPlaying) {
-                setPlaybackTime(playerRef.current.getCurrentTime());
-            }
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [isPlayerReady, isPlaying]);
-
-    if (!currentSong) {
-        return (
-            <div className="flex flex-col items-center justify-center p-20 text-white/20">
-                <Music2 size={48} className="mb-4 opacity-10" />
-                <p className="font-bold text-sm">Add a song to start</p>
-            </div>
-        );
-    }
+    if (!currentSong) return (
+        <div className="flex flex-col items-center justify-center p-20 text-white/10">
+            <Music2 size={64} className="animate-pulse mb-4" />
+            <p>Ready to Sync</p>
+        </div>
+    );
 
     return (
-        <div className="w-full h-full flex flex-col items-center justify-center gap-10">
-            {/* Visualizer Area */}
-            <div className="relative group p-8">
-                <motion.div 
-                    animate={isPlaying && !isBuffering ? { opacity: [0.2, 0.4, 0.2], scale: [1, 1.1, 1] } : { opacity: 0.1 }}
-                    transition={{ duration: 4, repeat: Infinity }}
-                    className="absolute inset-0 blur-[100px] rounded-full bg-blue-500/30"
-                />
-                <motion.div
-                    animate={isPlaying && !isBuffering ? { rotate: 360 } : {}}
-                    transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-                    className="relative w-64 h-64 md:w-80 md:h-80 rounded-full border border-white/10 shadow-2xl overflow-hidden z-10 p-1 bg-white/5 backdrop-blur-md"
-                >
-                    <img src={currentSong.thumbnail} alt="" className="w-full h-full object-cover rounded-full opacity-60" />
+        <div className="w-full flex flex-col items-center gap-8">
+            {/* Visualizer & Album Art */}
+            <div className="relative">
+                {isPlaying && (
+                    <motion.div 
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.3, 0.1] }}
+                        transition={{ duration: 3, repeat: Infinity }}
+                        className="absolute inset-0 bg-blue-500 blur-[100px] rounded-full"
+                    />
+                )}
+                <div className="relative w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden border-4 border-white/5 shadow-2xl z-10 p-1 bg-white/5 backdrop-blur-md">
+                    <img src={currentSong.thumbnail} alt="" className="w-full h-full object-cover rounded-full" />
                     <AnimatePresence>
-                        {isBuffering && (
-                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        {hasError && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-center p-4">
+                                <WifiOff className="text-red-500 mb-2" />
+                                <p className="text-xs text-white font-bold">Video Restricted<br/>Try another track</p>
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </motion.div>
+                </div>
             </div>
 
-            <div className="text-center px-4 max-w-2xl">
-                <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter line-clamp-2">{currentSong.title}</h2>
-                <p className="text-gray-400 mt-2 font-bold">{currentSong.artist}</p>
+            <div className="text-center">
+                <h2 className="text-3xl font-black text-white line-clamp-1">{currentSong.title}</h2>
+                <p className="text-blue-400 font-bold tracking-widest uppercase text-xs mt-2">{currentSong.artist}</p>
             </div>
 
-            {/* Hidden Player Engine */}
-            <div className="hidden pointer-events-none opacity-0 overflow-hidden w-0 h-0">
+            {/* THE ENGINE (Hidden) */}
+            <div className="opacity-0 pointer-events-none absolute left-[-9999px]">
                 <YouTube 
-                    key={currentSong.source_id}
                     videoId={currentSong.source_id} 
                     opts={opts} 
                     onReady={onReady}
@@ -163,4 +155,4 @@ const MusicPlayer = () => {
     );
 };
 
-export default MusicPlayer;
+export default memo(MusicPlayer);
