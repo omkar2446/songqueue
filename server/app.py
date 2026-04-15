@@ -775,8 +775,8 @@ def get_youtube_url(video_id):
             'socket_timeout': 10,
             'source_address': '0.0.0.0', 
             'geo_bypass': True,
-            'referer': 'https://www.youtube.com/',
-            'cachedir': False,
+            # Impersonate Android/iOS to bypass bot detection on datacenter IPs
+            'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -865,7 +865,8 @@ def resolve_spotify():
             'format': 'bestaudio/best',
             'noplaylist': True,
             'skip_download': True,
-            'source_address': '0.0.0.0', # Force IPv4
+            'source_address': '0.0.0.0', 
+            'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
