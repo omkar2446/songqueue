@@ -56,7 +56,7 @@ const Background3D = () => {
             />
 
             {shapes.map((s, i) => (
-                <FloatingShape key={i} {...s} initialX={s.x} initialY={s.y} />
+                <FloatingShape key={`bg-sh-${i}`} {...s} initialX={s.x} initialY={s.y} />
             ))}
 
             <div className="absolute inset-0 backdrop-blur-[100px]" />

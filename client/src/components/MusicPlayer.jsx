@@ -113,7 +113,8 @@ const MusicPlayer = () => {
                 audio.load();
             }
         } catch (err) {
-            console.error("Failed to load song src:", err);
+            const msg = err.response?.data?.error || err.message;
+            console.error("Failed to load song src:", msg);
             setIsBuffering(false);
         }
     };

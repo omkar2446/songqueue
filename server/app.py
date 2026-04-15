@@ -773,6 +773,8 @@ def get_youtube_url(video_id):
             'socket_timeout': 10,
             'source_address': '0.0.0.0', 
             'geo_bypass': True,
+            'referer': 'https://www.youtube.com/',
+            'cachedir': False,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
