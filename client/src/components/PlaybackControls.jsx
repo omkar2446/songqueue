@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoom } from '../context/RoomContext';
 import { useSocket } from '../context/SocketContext';
+import api from '../services/api';
 import {
     Play, Pause, SkipBack, SkipForward,
     Repeat, Repeat1, Shuffle, Volume2, VolumeX, Volume1,
@@ -110,8 +111,8 @@ const PlaybackControls = ({ onOpenEQ }) => {
         shuffleMode, setShuffleMode,
         crossfadeDuration, setCrossfadeDuration,
         normalizeVolume, setNormalizeVolume,
-        hasInteracted, setHasInteracted,
-        room, fetchRoomState
+        room, fetchRoomState,
+        isPro, setIsPro
     } = useRoom();
     const socket = useSocket();
 
@@ -175,6 +176,23 @@ const PlaybackControls = ({ onOpenEQ }) => {
         if (v > 0) setPrevVol(v);
     };
     const toggleMute = () => handleVolume(volume === 0 ? prevVol : 0);
+
+    const togglePro = async () => {
+        const next = !isPro;
+        setIsPro(next);
+        
+        try {
+            await api.post('/auth/update_pro', { is_pro: next });
+            // Update local user state if needed
+            const storedUser = JSON.parse(localStorage.getItem('user'));
+            if (storedUser) {
+                storedUser.is_pro = next;
+                localStorage.setItem('user', JSON.stringify(storedUser));
+            }
+        } catch (err) {
+            console.error('Failed to sync PRO status', err);
+        }
+    };
 
     const RepeatIcon = repeatMode === 2 ? Repeat1 : Repeat;
     const repeatLabel = ['Off', 'All', 'One'][repeatMode];
@@ -354,6 +372,14 @@ const PlaybackControls = ({ onOpenEQ }) => {
                         )}
                     </AnimatePresence>
                 </div>
+
+                {/* PRO Toggle */}
+                <button
+                    onClick={togglePro}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isPro ? 'bg-amber-500/20 text-amber-400 border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}
+                >
+                    <Zap size={12} className={isPro ? "fill-amber-400" : ""} /> {isPro ? 'PRO ACTIVE' : 'GO PRO'}
+                </button>
             </div>
         </div>
     );

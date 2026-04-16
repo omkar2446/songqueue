@@ -9,7 +9,7 @@ const MusicPlayer = () => {
     const { 
         currentSong, isPlaying, 
         playbackTime, setPlaybackTime, 
-        setDuration, volume 
+        setDuration, volume, isPro
     } = useRoom();
     
     const socket = useSocket();
@@ -23,14 +23,16 @@ const MusicPlayer = () => {
         width: '0',
         playerVars: {
             autoplay: 1,
-            controls: 0,
+            controls: isPro ? 0 : 1, // Let non-pro users see controls to skip ads
             disablekb: 1,
             modestbranding: 1,
-            enablejsapi: 1, // Required for postMessage to work
-            origin: window.location.origin, // Dynamically match Vercel/Localhost
+            enablejsapi: 1,
+            // Ensure origin is strictly defined without trailing slash for API stability
+            origin: window.location.origin.replace(/\/$/, ''), 
             rel: 0,
             iv_load_policy: 3,
-            widget_referrer: window.location.origin
+            widget_referrer: window.location.origin,
+            host: 'https://www.youtube.com' // Explicitly set host to fix postMessage errors
         },
     };
 
@@ -141,11 +143,21 @@ const MusicPlayer = () => {
                 <p className="text-blue-400 font-bold tracking-widest uppercase text-xs mt-2">{currentSong.artist}</p>
             </div>
 
-            {/* THE ENGINE (Hidden) */}
-            <div className="opacity-0 pointer-events-none absolute left-[-9999px]">
+            {/* THE ENGINE */}
+            <div className={`transition-all duration-500 rounded-lg overflow-hidden border border-white/10 ${
+                isPro 
+                ? "opacity-0 pointer-events-none absolute left-[-9999px] w-0 h-0" 
+                : "opacity-100 w-[300px] h-[169px] bg-black shadow-2xl mt-4"
+            }`}>
+                {!isPro && (
+                    <div className="bg-blue-500/20 text-[10px] text-blue-400 px-2 py-1 flex items-center justify-between">
+                        <span className="font-bold">FREE VERSION - ADS SUPPORTED</span>
+                        <span className="opacity-50 italic">Go PRO to hide</span>
+                    </div>
+                )}
                 <YouTube 
                     videoId={currentSong.source_id} 
-                    opts={opts} 
+                    opts={{...opts, width: isPro ? '0' : '300', height: isPro ? '0' : '169'}} 
                     onReady={onReady}
                     onStateChange={onStateChange}
                     onError={onError}

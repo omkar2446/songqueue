@@ -17,6 +17,7 @@ export const RoomProvider = ({ children }) => {
     const [duration, setDuration] = useState(0);
     const [volume, setVolume] = useState(100);
     const [playbackRate, setPlaybackRate] = useState(1);
+    const [isPro, setIsPro] = useState(user?.is_pro || false);
 
     // Advanced playback states
     const [repeatMode, setRepeatMode] = useState(0);      // 0=off 1=all 2=one
@@ -148,7 +149,7 @@ export const RoomProvider = ({ children }) => {
             hasInteracted, setHasInteracted,
             joinRoom, setRoom, fetchRoomState, logout,
             setIsPlaying, setPlaybackTime, setDuration,
-            removeSong, reorderSong
+            removeSong, reorderSong, isPro, setIsPro
         }}>
             {children}
         </RoomContext.Provider>

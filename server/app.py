@@ -65,6 +65,7 @@ class User(db.Model):
     phone = db.Column(db.String(20))
     room_id = db.Column(db.String(36), db.ForeignKey('room.id'), nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
+    is_pro = db.Column(db.Boolean, default=False)
     session_id = db.Column(db.String(100))
 
 class Playlist(db.Model):
@@ -107,6 +108,7 @@ with app.app_context():
             "ALTER TABLE room ADD COLUMN repeat_type INTEGER DEFAULT 0",
             "ALTER TABLE room ADD COLUMN shuffle_mode BOOLEAN DEFAULT 0",
             "ALTER TABLE song ADD COLUMN position INTEGER DEFAULT 0",
+            "ALTER TABLE user ADD COLUMN is_pro BOOLEAN DEFAULT 0",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -244,7 +246,7 @@ def signup():
     token = create_token(user.id)
     return jsonify({
         'token': token,
-        'user': {'id': user.id, 'name': user.name, 'email': user.email}
+        'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_pro': user.is_pro}
     })
 
 @app.route('/api/auth/login', methods=['POST'])
@@ -260,8 +262,19 @@ def login():
     token = create_token(user.id)
     return jsonify({
         'token': token,
-        'user': {'id': user.id, 'name': user.name, 'email': user.email}
+        'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_pro': user.is_pro}
     })
+
+@app.route('/api/auth/update_pro', methods=['POST'])
+@token_required
+def update_pro(user_id):
+    data = request.json
+    is_pro = data.get('is_pro', False)
+    user = User.query.get(user_id)
+    if user:
+        user.is_pro = is_pro
+        db.session.commit()
+    return jsonify({'success': True, 'is_pro': user.is_pro if user else False})
 
 @app.route('/api/auth/join', methods=['POST'])
 def join_session():
@@ -294,7 +307,7 @@ def join_session():
     token = create_token(user_id)
     return jsonify({
         'token': token,
-        'user': {'id': user_id, 'name': user.name, 'is_admin': user.is_admin},
+        'user': {'id': user_id, 'name': user.name, 'is_admin': user.is_admin, 'is_pro': user.is_pro},
         'room_id': room_id
     })
 
