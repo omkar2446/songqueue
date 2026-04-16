@@ -353,30 +353,30 @@ const PlaybackControls = ({ onOpenEQ }) => {
             </div>
 
             {/* ─── Advanced Row ─── */}
-            <div className="flex items-center justify-between pt-1 border-t border-white/5">
+            <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-between gap-2 pt-2 border-t border-white/5">
                 {/* Normalize */}
                 <button
                     onClick={() => setNormalizeVolume(v => !v)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${normalizeVolume ? 'bg-emerald-500/20 text-emerald-400' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${normalizeVolume ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-500 hover:text-white'}`}
                 >
-                    <Zap size={12} /> Normalize
+                    <Zap size={12} /> <span className="truncate">Normalize</span>
                 </button>
 
                 {/* EQ */}
                 <button
                     onClick={onOpenEQ}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-gray-600 hover:text-white hover:bg-white/5 transition-all"
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 rounded-xl text-[10px] sm:text-xs font-bold text-gray-500 hover:text-white transition-all"
                 >
-                    <Sliders size={12} /> Equalizer
+                    <Sliders size={12} /> <span className="truncate">Equalizer</span>
                 </button>
 
                 {/* Crossfade */}
-                <div className="relative">
+                <div className="relative col-span-1">
                     <button
                         onClick={() => { setShowCrossfade(v => !v); setShowSpeed(false); }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${crossfadeDuration > 0 ? 'bg-purple-500/20 text-purple-400' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}
+                        className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${crossfadeDuration > 0 ? 'bg-purple-500/20 text-purple-400' : 'bg-white/5 text-gray-500 hover:text-white'}`}
                     >
-                        ⌁ Crossfade {crossfadeDuration > 0 ? `${crossfadeDuration}s` : 'Off'}
+                        ⌁ Crossfade {crossfadeDuration > 0 ? `${crossfadeDuration}s` : ''}
                     </button>
                     <AnimatePresence>
                         {showCrossfade && (
@@ -393,16 +393,16 @@ const PlaybackControls = ({ onOpenEQ }) => {
                 <button
                     onClick={togglePro}
                     disabled={user?.email !== 'otambe655@gmail.com'}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${
                         user?.email !== 'otambe655@gmail.com' 
-                            ? 'opacity-30 cursor-not-allowed text-gray-700'
+                            ? 'opacity-30 cursor-not-allowed text-gray-700 bg-black/20'
                             : isPro 
-                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]' 
-                                : 'text-gray-600 hover:text-white hover:bg-white/5'
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/10' 
+                                : 'bg-white/5 text-gray-500 hover:text-white'
                     }`}
                 >
                     {user?.email === 'otambe655@gmail.com' ? <Zap size={12} className={isPro ? "fill-amber-400" : ""} /> : "🔒"} 
-                    {user?.email === 'otambe655@gmail.com' ? (isPro ? 'PRO ACTIVE' : 'GO PRO') : 'PRO Restricted'}
+                    <span className="truncate">{user?.email === 'otambe655@gmail.com' ? (isPro ? 'PRO' : 'GO PRO') : 'PRO'}</span>
                 </button>
             </div>
         </div>

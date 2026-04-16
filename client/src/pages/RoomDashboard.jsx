@@ -10,7 +10,6 @@ import {
     Plus,
     Upload,
     Share2,
-    MoreVertical,
     Check,
     ArrowBigUp,
     ArrowBigDown,
@@ -18,7 +17,10 @@ import {
     ChevronUp,
     ChevronDown,
     Library,
-    Heart
+    Heart,
+    ListMusic,
+    X,
+    Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MusicPlayer from '../components/MusicPlayer';
@@ -33,10 +35,12 @@ const RoomDashboard = () => {
     const {
         room, user, queue, currentSong, isPlaying, fetchRoomState, setIsPlaying,
         playbackTime, setPlaybackTime, users, duration,
-        removeSong, reorderSong
+        removeSong, reorderSong, setPlaybackRate
     } = useRoom();
     const socket = useSocket();
     const navigate = useNavigate();
+    
+    // UI States
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchDefaultTab, setSearchDefaultTab] = useState('youtube');
     const [isCopied, setIsCopied] = useState(false);
@@ -45,6 +49,7 @@ const RoomDashboard = () => {
     const [isEQOpen, setIsEQOpen] = useState(false);
     const [playlistSong, setPlaylistSong] = useState(null);
     const [roomNotFound, setRoomNotFound] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const openSearchWith = (tab) => {
         setSearchDefaultTab(tab);
@@ -66,35 +71,6 @@ const RoomDashboard = () => {
         initRoom();
     }, [room_id, user, room, roomNotFound]);
 
-    useEffect(() => {
-        if (socket) {
-            socket.on('room_state_update', (data) => {
-                if (data.repeat_mode !== undefined) setRepeatMode(data.repeat_mode);
-                if (data.current_song_id) {
-                    fetchRoomState(room_id);
-                }
-            });
-            return () => socket.off('room_state_update');
-        }
-    }, [socket, room_id]);
-
-    const handlePlayback = (payload) => {
-        const isObject = typeof payload === 'object';
-        const action = isObject ? payload.action : payload;
-        const value = isObject ? payload.value : null;
-
-        console.log("Playback requested:", action, "Value:", value);
-
-        if (socket && room_id) {
-            const data = { room_id, action, value };
-            socket.emit('playback_control', data);
-
-            if (action === 'play') setIsPlaying(true);
-            if (action === 'pause') setIsPlaying(false);
-            if (action === 'speed') setPlaybackRate(value);
-        }
-    };
-
     const copyInvite = () => {
         navigator.clipboard.writeText(room_id);
         setIsCopied(true);
@@ -106,8 +82,6 @@ const RoomDashboard = () => {
         if (!file) return;
 
         setUploading(true);
-        console.log("Uploading file:", file.name);
-
         const formData = new FormData();
         formData.append('file', file);
         formData.append('user_name', user?.name || 'Anonymous');
@@ -116,8 +90,6 @@ const RoomDashboard = () => {
             const res = await api.post(`/room/${room_id}/upload`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            console.log("Upload success:", res.data);
-            // Prompt to save to library
             if (res.data.song) {
                 setPlaylistSong(res.data.song);
             }
@@ -126,253 +98,212 @@ const RoomDashboard = () => {
             alert("Upload failed: " + (err.response?.data?.error || err.message));
         } finally {
             setUploading(false);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
         }
     };
 
     return (
-        <div className="min-h-screen w-full bg-[#0c0b0f] text-white flex flex-col">
-            {/* Header */}
-            <header className="px-8 py-4 flex items-center justify-between border-b border-white/5 bg-black/20 backdrop-blur-md sticky top-0 z-50">
-                <div className="flex items-center gap-4">
-                    <div className="p-2 bg-blue-600 rounded-lg">
-                        <Music2 size={24} />
+        <div className="min-h-screen w-full bg-[#0c0b0f] text-white flex flex-col overflow-hidden font-sans">
+            {/* ── Header ── */}
+            <header className="px-4 sm:px-8 py-3 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl sticky top-0 z-[60]">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                        <Music2 size={20} className="text-white" />
                     </div>
                     <div>
-                        <h1 className="font-bold text-lg leading-none">{room?.name || 'Loading Room...'}</h1>
-                        <span className="text-xs text-gray-400">ID: {room_id}</span>
+                        <h1 className="font-bold text-sm sm:text-lg leading-none truncate max-w-[140px] sm:max-w-none">
+                            {room?.name || 'Loading...'}
+                        </h1>
+                        <span className="text-[10px] text-gray-500 font-mono tracking-tight">{room_id}</span>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <Link to="/playlists" className="flex items-center gap-2 px-4 py-2 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded-full text-sm transition-all active:scale-95">
-                        <Library size={16} />
-                        Library
+                <div className="flex items-center gap-2 sm:gap-4">
+                    <Link to="/playlists" className="p-2.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl transition-all active:scale-95 flex items-center gap-2">
+                        <Library size={18} />
+                        <span className="hidden sm:inline text-xs font-bold uppercase tracking-wider">Library</span>
                     </Link>
-                    {/* Live Devices Button */}
-                    <button
-                        onClick={() => setIsDevicesOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full text-sm transition-all active:scale-95"
+
+                    <button 
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className={`p-2.5 rounded-xl transition-all active:scale-95 lg:hidden ${isSidebarOpen ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-300'}`}
                     >
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        {users?.length || 0} Live
+                        <ListMusic size={18} />
                     </button>
+
                     <button
                         onClick={copyInvite}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-full text-sm transition-all active:scale-95"
+                        className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-500/10"
                     >
-                        {isCopied ? <Check size={16} /> : <Share2 size={16} />}
-                        {isCopied ? 'Copied!' : 'Invite'}
+                        {isCopied ? <Check size={14} /> : <Share2 size={14} />}
+                        {isCopied ? 'Copied' : 'Invite'}
                     </button>
-                    <div className="flex -space-x-2">
-                        {users?.slice(0, 4).map((u, i) => (
-                            <div key={u.id || `u-${i}`} className="w-8 h-8 rounded-full bg-blue-500 border-2 border-[#0c0b0f] flex items-center justify-center text-[10px] font-bold uppercase" title={u.name}>
+
+                    <div className="hidden md:flex -space-x-2">
+                        {users?.slice(0, 3).map((u, i) => (
+                            <div key={u.id || `u-${i}`} className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 border-2 border-[#0c0b0f] flex items-center justify-center text-[10px] font-black uppercase shadow-xl" title={u.name}>
                                 {u.name.substring(0, 2)}
                             </div>
                         ))}
-                        {users?.length > 4 && (
-                            <div className="w-8 h-8 rounded-full bg-white/10 border-2 border-[#0c0b0f] flex items-center justify-center text-[10px] text-gray-400">
-                                +{users.length - 4}
-                            </div>
-                        )}
                     </div>
                 </div>
             </header>
 
-            {/* Main Content */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Left: Player & Search */}
-                <div className="flex-1 p-8 flex flex-col gap-8 overflow-y-auto custom-scrollbar">
-                    {/* Hero Player Area */}
-                    <div className="glass-card w-full max-w-4xl mx-auto flex flex-col items-center justify-center p-8 relative group overflow-hidden shadow-[0_0_50px_rgba(59,130,246,0.1)]">
+            {/* ── Main Layout ── */}
+            <div className="flex-1 flex overflow-hidden relative">
+                
+                {/* ── Center: Player & Search ── */}
+                <div className="flex-1 p-4 sm:p-8 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+                    
+                    {/* Player Card */}
+                    <div className="glass-card w-full max-w-4xl mx-auto flex flex-col items-center justify-center p-6 sm:p-12 relative group overflow-hidden shadow-[0_32px_64px_rgba(0,0,0,0.4)] border-white/5">
                         {roomNotFound ? (
-                            <div className="flex flex-col items-center gap-6 p-12 text-center">
-                                <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+                            <div className="flex flex-col items-center gap-8 py-12 text-center">
+                                <div className="w-20 h-20 bg-red-500/10 rounded-[2rem] flex items-center justify-center border border-red-500/20 shadow-2xl">
                                     <Trash2 size={40} className="text-red-400" />
                                 </div>
-                                <div className="space-y-2">
-                                    <h2 className="text-2xl font-black tracking-tight">Room Expired</h2>
-                                    <p className="text-gray-500 text-sm max-w-xs">This room no longer exists on the server. It may have been deleted after inactivity.</p>
+                                <div className="space-y-3">
+                                    <h2 className="text-3xl font-black tracking-tight text-white">Dissolved.</h2>
+                                    <p className="text-gray-500 text-sm max-w-xs mx-auto leading-relaxed">This room expired or was deleted by the host due to inactivity.</p>
                                 </div>
-                                <button 
-                                    onClick={() => navigate('/')}
-                                    className="px-8 py-3 bg-white text-black font-black rounded-2xl hover:scale-105 transition-all shadow-xl"
-                                >
-                                    Go Back Home
+                                <button onClick={() => navigate('/')} className="px-10 py-4 bg-white text-black font-black rounded-2xl transition-all shadow-2xl hover:scale-105 active:scale-95">
+                                    Start New Session
                                 </button>
                             </div>
                         ) : (
                             <>
                                 <MusicPlayer />
-                                {/* Progress Bar */}
-                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 group-hover:h-2 transition-all">
+                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/5 group-hover:h-2 transition-all">
                                     <motion.div
-                                        className="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"
+                                        className="h-full bg-blue-500 shadow-[0_0_20px_#3b82f6]"
                                         animate={{ width: `${(playbackTime / (duration || 1)) * 100}%` }}
-                                        transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
+                                        transition={{ type: 'spring', damping: 20, stiffness: 100 }}
                                     />
                                 </div>
                             </>
                         )}
                     </div>
 
-                    {/* Advanced Playback Controls */}
-                    <div className="glass-card max-w-4xl mx-auto w-full">
+                    {/* Controls & EQ */}
+                    <div className="glass-card max-w-4xl mx-auto w-full p-1 border-white/5">
                         <PlaybackControls onOpenEQ={() => setIsEQOpen(true)} />
                     </div>
 
-                    {/* Add Music Options */}
-                    <div className="max-w-4xl mx-auto w-full">
-                        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 px-1">Add Music</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {/* YouTube Card */}
-                            <motion.button
-                                onClick={() => openSearchWith('youtube')}
-                                whileHover={{ scale: 1.02, y: -2 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="group relative bg-gradient-to-br from-red-500/10 to-red-900/10 border border-red-500/20 rounded-2xl p-6 flex flex-col items-center gap-3 text-center transition-all hover:border-red-500/40 hover:shadow-[0_0_30px_rgba(239,68,68,0.1)] overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <div className="p-3 bg-red-500/15 rounded-xl group-hover:bg-red-500/25 transition-colors relative z-10">
-                                    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-red-400">
-                                        <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z" strokeLinecap="round" strokeLinejoin="round" />
-                                        <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" fill="currentColor" stroke="none" />
-                                    </svg>
-                                </div>
-                                <div className="relative z-10">
-                                    <p className="font-bold text-sm text-white">YouTube Video</p>
-                                    <p className="text-[11px] text-gray-500 mt-1">Paste any YouTube link</p>
-                                </div>
+                    {/* Add Music Section */}
+                    <div className="max-w-4xl mx-auto w-full mb-28 lg:mb-10">
+                        <div className="flex items-center justify-between mb-6 px-2">
+                            <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Source Select</h3>
+                            <button onClick={copyInvite} className="sm:hidden text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 px-4 py-1.5 rounded-full border border-blue-500/10">Invite Friends</button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <motion.button onClick={() => openSearchWith('youtube')} whileHover={{ y: -4, backgroundColor: 'rgba(239, 68, 68, 0.05)' }} whileTap={{ scale: 0.98 }} className="group relative bg-white/[0.02] border border-white/5 rounded-3xl p-8 flex flex-col items-center gap-4 text-center transition-all hover:border-red-500/30">
+                                <div className="p-4 bg-red-400/10 rounded-2xl text-red-400 group-hover:scale-110 transition-transform"><Search size={24} /></div>
+                                <div><p className="font-black text-sm uppercase tracking-wider">YouTube</p><p className="text-[10px] text-gray-500 mt-1">Paste Link or ID</p></div>
                             </motion.button>
 
-                            {/* Spotify Card */}
-                            <motion.button
-                                onClick={() => openSearchWith('spotify')}
-                                whileHover={{ scale: 1.02, y: -2 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="group relative bg-gradient-to-br from-emerald-500/10 to-emerald-900/10 border border-emerald-500/20 rounded-2xl p-6 flex flex-col items-center gap-3 text-center transition-all hover:border-emerald-500/40 hover:shadow-[0_0_30px_rgba(16,185,129,0.1)] overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <div className="p-3 bg-emerald-500/15 rounded-xl group-hover:bg-emerald-500/25 transition-colors relative z-10">
-                                    <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" className="text-emerald-400">
-                                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
-                                    </svg>
-                                </div>
-                                <div className="relative z-10">
-                                    <p className="font-bold text-sm text-white">Spotify Link</p>
-                                    <p className="text-[11px] text-gray-500 mt-1">Track, album, or playlist</p>
-                                </div>
+                            <motion.button onClick={() => openSearchWith('spotify')} whileHover={{ y: -4, backgroundColor: 'rgba(16, 185, 129, 0.05)' }} whileTap={{ scale: 0.98 }} className="group relative bg-white/[0.02] border border-white/5 rounded-3xl p-8 flex flex-col items-center gap-4 text-center transition-all hover:border-emerald-500/30">
+                                <div className="p-4 bg-emerald-400/10 rounded-2xl text-emerald-400 font-bold text-xl leading-none group-hover:scale-110 transition-transform">♫</div>
+                                <div><p className="font-black text-sm uppercase tracking-wider">Spotify</p><p className="text-[10px] text-gray-500 mt-1">Resolve Matches</p></div>
                             </motion.button>
 
-                            {/* Direct Link Card */}
-                            <motion.button
-                                onClick={() => openSearchWith('direct')}
-                                whileHover={{ scale: 1.02, y: -2 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="group relative bg-gradient-to-br from-blue-500/10 to-blue-900/10 border border-blue-500/20 rounded-2xl p-6 flex flex-col items-center gap-3 text-center transition-all hover:border-blue-500/40 hover:shadow-[0_0_30px_rgba(59,130,246,0.1)] overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <div className="p-3 bg-blue-500/15 rounded-xl group-hover:bg-blue-500/25 transition-colors relative z-10">
-                                    <Plus size={28} className="text-blue-400" />
+                            <motion.button onClick={() => document.getElementById('audio-upload')?.click()} whileHover={{ y: -4, backgroundColor: 'rgba(59, 130, 246, 0.05)' }} whileTap={{ scale: 0.98 }} className="group relative bg-white/[0.02] border border-white/5 rounded-3xl p-8 flex flex-col items-center gap-4 text-center transition-all hover:border-blue-500/30">
+                                <div className="p-4 bg-blue-400/10 rounded-2xl text-blue-400 group-hover:scale-110 transition-transform">
+                                    {uploading ? <Loader2 className="animate-spin" size={24} /> : <Upload size={24} />}
                                 </div>
-                                <div className="relative z-10">
-                                    <p className="font-bold text-sm text-white">Direct Link</p>
-                                    <p className="text-[11px] text-gray-500 mt-1">MP3, WAV, or video URL</p>
-                                </div>
+                                <div><p className="font-black text-sm uppercase tracking-wider">Upload</p><p className="text-[10px] text-gray-500 mt-1">MP3 / WAV Files</p></div>
+                                <input id="audio-upload" type="file" className="hidden" accept=".mp3,.wav" onChange={handleUpload} disabled={uploading} />
                             </motion.button>
                         </div>
                     </div>
                 </div>
 
-                <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} defaultTab={searchDefaultTab} />
+                {/* ── Sidebar: Queue ── */}
+                <AnimatePresence>
+                    {(isSidebarOpen || window.innerWidth > 1024) && (
+                        <motion.aside 
+                            initial={window.innerWidth <= 1024 ? { x: '100%' } : false}
+                            animate={{ x: 0 }}
+                            exit={{ x: '100%' }}
+                            transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+                            className={`
+                                fixed inset-y-0 right-0 w-full sm:w-[420px] lg:static lg:w-[380px]
+                                border-l border-white/5 bg-[#0c0b0f] lg:bg-black/20 backdrop-blur-3xl z-[100] lg:z-10
+                                flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.5)] lg:shadow-none
+                            `}
+                        >
+                            <div className="p-6 sm:p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                                <div className="flex items-center gap-3">
+                                    <ListMusic className="text-blue-500" size={20} />
+                                    <h3 className="font-black text-[11px] uppercase tracking-[0.3em]">Next Tracks</h3>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[10px] font-black text-gray-400 bg-white/5 px-2.5 py-1 rounded-full">{queue.length}</span>
+                                    <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 hover:bg-white/10 rounded-full transition-colors"><X size={20} /></button>
+                                </div>
+                            </div>
 
-                {/* Right: Queue Sidebar */}
-                <aside className="w-96 border-l border-white/5 bg-black/10 backdrop-blur-xl flex flex-col">
-                    <div className="p-6 border-b border-white/5 flex items-center justify-between">
-                        <h3 className="font-bold flex items-center gap-2">
-                            <Plus size={18} />
-                            Up Next
-                        </h3>
-                        <span className="text-xs bg-white/5 px-2 py-1 rounded text-gray-400">{queue.length} Songs</span>
-                    </div>
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 custom-scrollbar">
+                                {queue.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full text-center p-12 space-y-4">
+                                        <div className="w-16 h-16 bg-white/5 rounded-[2rem] flex items-center justify-center opacity-20">
+                                            <Music2 size={32} />
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase text-gray-600 tracking-[0.2em] italic">Empty Queue</p>
+                                    </div>
+                                ) : (
+                                    queue.map((song, i) => (
+                                        <motion.div
+                                            key={song.id || `s-${i}`}
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className={`flex items-center gap-4 p-4 rounded-[1.5rem] hover:bg-white/5 group transition-all border border-transparent ${currentSong?.id === song.id ? 'bg-blue-500/10 border-blue-500/20 shadow-2xl' : ''}`}
+                                        >
+                                            <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-white/5 border border-white/5 relative group-hover:scale-105 transition-transform">
+                                                <img src={song.thumbnail} className="w-full h-full object-cover" alt="" />
+                                                {currentSong?.id === song.id && (
+                                                    <div className="absolute inset-0 bg-blue-600/60 flex items-center justify-center">
+                                                        <div className="flex gap-1 items-end h-3">
+                                                            {[1,2,3].map(j => <motion.div key={j} animate={{ height: [4, 12, 4] }} transition={{ duration: 0.5, repeat: Infinity, delay: j*0.1 }} className="w-1 bg-white" />)}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className={`font-bold text-sm truncate ${currentSong?.id === song.id ? 'text-blue-400' : 'text-white'}`}>{song.title}</h4>
+                                                <p className="text-[10px] text-gray-500 truncate uppercase font-bold tracking-widest mt-0.5">{song.artist}</p>
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-2 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
+                                                <div className="flex flex-col items-center scale-90">
+                                                    <button onClick={() => socket.emit('vote', { room_id, song_id: song.id, value: 1 })} className="text-gray-600 hover:text-emerald-400"><ChevronUp size={20} /></button>
+                                                    <span className="text-[10px] font-black text-gray-400">{song.votes || 0}</span>
+                                                    <button onClick={() => socket.emit('vote', { room_id, song_id: song.id, value: -1 })} className="text-gray-600 hover:text-red-400"><ChevronDown size={20} /></button>
+                                                </div>
+                                                <button onClick={() => removeSong(song.id)} className="p-2 text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                                            </div>
+                                        </motion.div>
+                                    ))
+                                )}
+                            </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                        {queue.map((song, i) => (
-                            <motion.div
-                                key={song.id || `s-${i}`}
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.05 }}
-                                className={`flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 group transition-colors cursor-pointer ${currentSong?.id === song.id ? 'bg-blue-500/10 border border-blue-500/20' : ''}`}
-                            >
-                                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-800">
-                                    <img src={song.thumbnail} className="w-full h-full object-cover" alt="" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <h4 className="font-bold text-sm truncate">{song.title}</h4>
-                                    <p className="text-xs text-gray-400 truncate">{song.artist}</p>
-                                </div>
-                                <button 
-                                    onClick={() => setPlaylistSong(song)}
-                                    className="opacity-0 group-hover:opacity-100 p-2 text-gray-600 hover:text-pink-500 transition-all active:scale-90"
-                                    title="Save to Playlist"
-                                >
-                                    <Heart size={16} />
-                                </button>
-                                <div className="flex flex-col items-center gap-0">
-                                    <button
-                                        onClick={() => socket.emit('vote', { room_id, song_id: song.id, value: 1 })}
-                                        className="text-gray-500 hover:text-emerald-400 transition-colors"
-                                    >
-                                        <ArrowBigUp size={20} />
-                                    </button>
-                                    <span className="text-[10px] font-bold">{song.votes || 0}</span>
-                                    <button
-                                        onClick={() => socket.emit('vote', { room_id, song_id: song.id, value: -1 })}
-                                        className="text-gray-500 hover:text-red-400 transition-colors"
-                                    >
-                                        <ArrowBigDown size={20} />
-                                    </button>
-                                </div>
-                                {/* Reorder + Remove */}
-                                <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => reorderSong(song.id, 'up')} className="text-gray-600 hover:text-white"><ChevronUp size={14} /></button>
-                                    <button onClick={() => reorderSong(song.id, 'down')} className="text-gray-600 hover:text-white"><ChevronDown size={14} /></button>
-                                </div>
+                            <div className="p-8 border-t border-white/5 bg-white/[0.02]">
                                 <button
-                                    onClick={() => removeSong(song.id)}
-                                    className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-600 hover:text-red-400 transition-all"
+                                    onClick={() => socket.emit('join_as_device', { room_id })}
+                                    className="w-full py-4 bg-white text-black font-black text-[11px] uppercase tracking-[0.3em] rounded-2xl hover:scale-[1.03] transition-all active:scale-95 shadow-[0_12px_24px_rgba(255,255,255,0.1)]"
                                 >
-                                    <Trash2 size={14} />
+                                    Sync Device
                                 </button>
-                            </motion.div>
-                        ))}
-                    </div>
-
-                    <div className="p-4 border-t border-white/5">
-                        <label className={`w-full py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition-colors cursor-pointer ${uploading ? 'bg-blue-500/20 text-blue-400 cursor-wait' : 'bg-white/5 hover:bg-white/10 text-white'}`}>
-                            {uploading ? (
-                                <div className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-                            ) : (
-                                <Upload size={16} />
-                            )}
-                            {uploading ? 'Uploading...' : 'Upload Audio File'}
-                            <input type="file" className="hidden" accept=".mp3,.wav" onChange={handleUpload} disabled={uploading} />
-                        </label>
-                    </div>
-                </aside>
+                            </div>
+                        </motion.aside>
+                    )}
+                </AnimatePresence>
             </div>
 
-            {/* Devices Panel Modal */}
+            <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} defaultTab={searchDefaultTab} />
             <DevicesPanel isOpen={isDevicesOpen} onClose={() => setIsDevicesOpen(false)} />
-            {/* Equalizer Modal */}
             <EqualizerPanel isOpen={isEQOpen} onClose={() => setIsEQOpen(false)} />
-            
-            <PlaylistSelectorModal 
-                isOpen={!!playlistSong} 
-                onClose={() => setPlaylistSong(null)} 
-                song={playlistSong} 
-            />
+            <PlaylistSelectorModal isOpen={!!playlistSong} onClose={() => setPlaylistSong(null)} song={playlistSong} />
         </div>
     );
 };
