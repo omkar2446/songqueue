@@ -11,10 +11,10 @@ const AntigravityBackground = () => {
 
         const isMobile = window.innerWidth < 768;
         const dots = [];
-        const spacingX = isMobile ? 22 : 32;
-        const spacingY = isMobile ? 18 : 28;
-        const rows = isMobile ? 40 : 55;
-        const cols = isMobile ? 45 : 80;
+        const spacingX = isMobile ? 36 : 32;
+        const spacingY = isMobile ? 32 : 28;
+        const rows = isMobile ? 25 : 55;
+        const cols = isMobile ? 25 : 80;
         let time = 0;
 
         const resize = () => {
@@ -91,7 +91,7 @@ const AntigravityBackground = () => {
                     
                     ctx.fillStyle = `hsla(${dot.h}, 90%, ${lum}%, ${opacity})`;
                     
-                    if (projected.scale > 0.7) {
+                    if (!isMobile && projected.scale > 0.7) {
                         ctx.shadowBlur = 8 * projected.scale;
                         ctx.shadowColor = `hsla(${dot.h}, 90%, ${lum}%, 0.4)`;
                     } else {

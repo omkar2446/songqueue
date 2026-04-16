@@ -203,9 +203,9 @@ const MusicPlayer = () => {
                 {/* Background Glow */}
                 {isPlaying && (
                     <motion.div
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.3, 0.1] }}
+                        animate={{ opacity: [0.1, 0.2, 0.1] }}
                         transition={{ duration: 3, repeat: Infinity }}
-                        className="absolute inset-x-0 -bottom-10 h-40 bg-blue-500 blur-[120px] rounded-full -z-10"
+                        className="absolute inset-x-0 -bottom-10 h-40 bg-red-600 blur-[100px] rounded-full -z-10 sm:scale-125"
                     />
                 )}
 
@@ -218,7 +218,7 @@ const MusicPlayer = () => {
                         >
                             <img src={displayThumb || '/placeholder.png'} className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700" alt="" />
                             <div className="absolute inset-0 flex items-center justify-center p-6 text-center bg-gradient-to-t from-black via-transparent to-transparent">
-                                <div className="p-5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
+                                <div className="p-5 bg-white/10 rounded-2xl border border-white/5 sm:backdrop-blur-md">
                                     {isYoutube ? <Sliders size={32} className="text-amber-400 mx-auto mb-2" /> : <Music2 size={32} className="text-red-400 mx-auto mb-2" />}
                                     <p className="text-[10px] font-black uppercase tracking-widest text-white/40">
                                         {isYoutube ? 'EQ Processing Enabled' : 'Direct Playback'}
@@ -243,7 +243,7 @@ const MusicPlayer = () => {
 
                             {/* Watch Video button */}
                             {isYoutube && (
-                                <motion.button onClick={() => setShowVideo(true)} whileHover={{ opacity: 1 }} className="absolute inset-x-0 bottom-0 top-0 bg-black/40 flex flex-col items-center justify-center gap-2 transition-all opacity-0 group-hover:opacity-100 z-20 backdrop-blur-sm">
+                                <motion.button onClick={() => setShowVideo(true)} whileHover={{ opacity: 1 }} className="absolute inset-x-0 bottom-0 top-0 bg-black/60 flex flex-col items-center justify-center gap-2 transition-all opacity-0 group-hover:opacity-100 z-20 sm:backdrop-blur-sm">
                                     <Tv2 size={28} className="text-white" />
                                     <span className="text-[11px] font-bold text-white/80">Watch High-Res Video</span>
                                     <p className="text-[9px] text-amber-300 font-bold">(Audio EQ will disable)</p>

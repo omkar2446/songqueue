@@ -105,7 +105,7 @@ const RoomDashboard = () => {
     return (
         <div className="min-h-screen w-full bg-[#0c0b0f] text-white flex flex-col overflow-hidden font-sans">
             {/* ── Header ── */}
-            <header className="px-4 sm:px-8 py-3 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl sticky top-0 z-[60]">
+            <header className="px-4 sm:px-8 py-3 flex items-center justify-between border-b border-white/5 bg-black/60 sm:backdrop-blur-xl sticky top-0 z-[60]">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
                         <Music2 size={20} className="text-white" />
@@ -228,7 +228,7 @@ const RoomDashboard = () => {
                             transition={{ type: 'spring', damping: 28, stiffness: 220 }}
                             className={`
                                 fixed inset-y-0 right-0 w-full sm:w-[420px] lg:static lg:w-[380px]
-                                border-l border-white/5 bg-[#0c0b0f] lg:bg-black/20 backdrop-blur-3xl z-[100] lg:z-10
+                                border-l border-white/5 bg-[#0c0b0f] lg:bg-black/20 sm:backdrop-blur-3xl z-[100] lg:z-10
                                 flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.5)] lg:shadow-none
                             `}
                         >
