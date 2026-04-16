@@ -219,7 +219,7 @@ const MusicPlayer = () => {
                             <img src={displayThumb || '/placeholder.png'} className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700" alt="" />
                             <div className="absolute inset-0 flex items-center justify-center p-6 text-center bg-gradient-to-t from-black via-transparent to-transparent">
                                 <div className="p-5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
-                                    {isYoutube ? <Sliders size={32} className="text-amber-400 mx-auto mb-2" /> : <Music2 size={32} className="text-blue-400 mx-auto mb-2" />}
+                                    {isYoutube ? <Sliders size={32} className="text-amber-400 mx-auto mb-2" /> : <Music2 size={32} className="text-red-400 mx-auto mb-2" />}
                                     <p className="text-[10px] font-black uppercase tracking-widest text-white/40">
                                         {isYoutube ? 'EQ Processing Enabled' : 'Direct Playback'}
                                     </p>
@@ -253,7 +253,7 @@ const MusicPlayer = () => {
                             {/* EQ Indicator Overlay */}
                             <AnimatePresence>
                                 {eqBands.some(v => v !== 0) && (
-                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 bg-violet-600 rounded-full shadow-lg">
+                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 bg-red-600 rounded-full shadow-lg">
                                         <div className="flex gap-0.5 items-end h-2.5">
                                             {[1,2,3].map(i => <motion.div key={i} animate={{ height: [4, 10, 4] }} transition={{ duration: 0.5, repeat: Infinity, delay: i*0.1 }} className="w-0.5 bg-white" />)}
                                         </div>
@@ -294,7 +294,7 @@ const MusicPlayer = () => {
             {/* Song Info */}
             <div className="text-center space-y-1">
                 <h2 className="text-3xl font-black text-white line-clamp-1 tracking-tight">{displayTitle}</h2>
-                <div className="flex items-center justify-center gap-2 text-blue-400 font-black tracking-[0.2em] text-[10px] uppercase">
+                <div className="flex items-center justify-center gap-2 text-red-500 font-black tracking-[0.2em] text-[10px] uppercase">
                     <span>{displayArtist}</span>
                     <span className="w-1 h-1 rounded-full bg-white/20" />
                     <span>{currentSong.source}</span>

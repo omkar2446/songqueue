@@ -29,14 +29,14 @@ const Playlists = () => {
 
     if (!token) {
         return (
-            <div className="min-h-screen bg-[#0a0514] flex flex-col items-center justify-center p-6 text-white text-center">
+            <div className="min-h-screen bg-[#000000] flex flex-col items-center justify-center p-6 text-white text-center">
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-violet-600/10 blur-[120px] rounded-full" />
-                    <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
+                    <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-red-600/10 blur-[120px] rounded-full" />
+                    <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-rose-600/10 blur-[120px] rounded-full" />
                 </div>
                 
                 <div className="relative z-10 max-w-sm">
-                    <div className="w-20 h-20 bg-gradient-to-br from-violet-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl mx-auto mb-8">
+                    <div className="w-20 h-20 bg-gradient-to-br from-red-600 to-rose-600 rounded-3xl flex items-center justify-center shadow-2xl mx-auto mb-8">
                         <ListMusic size={40} />
                     </div>
                     <h1 className="text-3xl font-black mb-4">Your Music, Synced.</h1>
@@ -45,7 +45,7 @@ const Playlists = () => {
                     </p>
                     
                     <div className="flex flex-col gap-3">
-                        <button onClick={() => navigate('/login')} className="w-full bg-violet-600 hover:bg-violet-500 py-4 rounded-2xl font-bold transition-all shadow-lg shadow-violet-500/20 active:scale-[0.98]">
+                        <button onClick={() => navigate('/login')} className="w-full bg-red-600 hover:bg-red-500 py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-500/20 active:scale-[0.98]">
                             Sign In
                         </button>
                         <button onClick={() => navigate('/signup')} className="w-full bg-white/5 hover:bg-white/10 py-4 rounded-2xl font-bold transition-all border border-white/5 active:scale-[0.98]">
@@ -164,13 +164,13 @@ const Playlists = () => {
     return (
         <div className="min-h-screen bg-[#0a0514] text-white selection:bg-violet-500/30">
             {/* Header */}
-            <header className="fixed top-0 left-0 right-0 z-50 bg-[#0a0514]/80 backdrop-blur-xl border-b border-white/5 py-4 px-8 flex items-center justify-between">
+            <header className="fixed top-0 left-0 right-0 z-50 bg-[#000000]/80 backdrop-blur-xl border-b border-white/5 py-4 px-8 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Link to={room ? `/room/${room.id}` : '/'} className="p-2 hover:bg-white/5 rounded-full transition-colors">
                         <ArrowLeft size={20} />
                     </Link>
                     <div className="flex items-center gap-2">
-                        <Library className="text-violet-400" size={24} />
+                        <Library className="text-red-500" size={24} />
                         <h1 className="text-xl font-bold">Your Library</h1>
                     </div>
                 </div>
@@ -192,12 +192,12 @@ const Playlists = () => {
                 <div className="md:col-span-4 space-y-6">
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold flex items-center gap-2">
-                            <ListMusic size={18} className="text-violet-400" />
+                            <ListMusic size={18} className="text-red-500" />
                             Playlists
                         </h2>
                         <button 
                             onClick={() => setShowCreate(true)}
-                            className="p-1.5 bg-violet-500 hover:bg-violet-400 rounded-lg transition-colors"
+                            className="p-1.5 bg-red-600 hover:bg-red-500 rounded-lg transition-colors"
                         >
                             <Plus size={16} />
                         </button>
@@ -214,13 +214,13 @@ const Playlists = () => {
                             >
                                 <input 
                                     autoFocus
-                                    className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-violet-500/50"
+                                    className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-red-500/50"
                                     placeholder="Playlist name..."
                                     value={newName}
                                     onChange={e => setNewName(e.target.value)}
                                 />
                                 <div className="flex gap-2">
-                                    <button type="submit" className="flex-1 bg-violet-600 py-1.5 rounded-lg text-xs font-bold">Create</button>
+                                    <button type="submit" className="flex-1 bg-red-600 py-1.5 rounded-lg text-xs font-bold">Create</button>
                                     <button type="button" onClick={() => setShowCreate(false)} className="flex-1 bg-white/5 py-1.5 rounded-lg text-xs font-bold">Cancel</button>
                                 </div>
                             </motion.form>
@@ -241,11 +241,11 @@ const Playlists = () => {
                                     key={p.id || i}
                                     whileHover={{ x: 4 }}
                                     onClick={() => setSelected(p.id)}
-                                    className={`p-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all group ${selected === p.id ? 'bg-violet-500/20 border-violet-500/30 border' : 'bg-white/5 border border-white/5 hover:bg-white/10'}`}
+                                    className={`p-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all group ${selected === p.id ? 'bg-red-500/20 border-red-500/30 border' : 'bg-white/5 border border-white/5 hover:bg-white/10'}`}
                                 >
                                     <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-gradient-to-br from-violet-600/20 to-blue-600/20 rounded-xl flex items-center justify-center">
-                                            <Music2 className={selected === p.id ? 'text-violet-400' : 'text-gray-600 group-hover:text-white transition-colors'} size={20} />
+                                        <div className="w-12 h-12 bg-gradient-to-br from-red-600/20 to-rose-600/20 rounded-xl flex items-center justify-center">
+                                            <Music2 className={selected === p.id ? 'text-red-400' : 'text-gray-600 group-hover:text-white transition-colors'} size={20} />
                                         </div>
                                         <div>
                                             <p className="font-bold text-sm">{p.name}</p>
@@ -269,18 +269,18 @@ const Playlists = () => {
                     {selected ? (
                         <div className="bg-white/5 border border-white/10 rounded-[32px] p-8 min-h-[600px] relative overflow-hidden">
                             {/* Decorative blur */}
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-violet-600/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
                             
                             <div className="relative z-10 space-y-8">
                                 <div className="flex items-end gap-6">
-                                    <div className="w-40 h-40 bg-gradient-to-br from-violet-600 to-blue-600 rounded-[2rem] shadow-2xl flex items-center justify-center">
+                                    <div className="w-40 h-40 bg-gradient-to-br from-red-600 to-rose-600 rounded-[2rem] shadow-2xl flex items-center justify-center">
                                         <Music size={64} className="text-white opacity-40" />
                                     </div>
                                     <div className="flex-1 pb-2">
                                         <p className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] mb-3">Playlist</p>
                                         <h2 className="text-5xl font-black mb-4 tracking-tight">{detail?.name}</h2>
                                         <div className="flex items-center gap-3 text-sm font-medium text-gray-400">
-                                            <span className="text-violet-400">{user?.name}</span>
+                                            <span className="text-red-400">{user?.name}</span>
                                             <span className="w-1 h-1 rounded-full bg-gray-700" />
                                             <span>{detail?.songs?.length || 0} tracks</span>
                                         </div>
@@ -290,7 +290,7 @@ const Playlists = () => {
                                 <div className="flex items-center gap-4">
                                     <button 
                                         onClick={playPlaylist}
-                                        className="w-14 h-14 bg-violet-500 hover:bg-violet-400 text-white rounded-full flex items-center justify-center shadow-lg shadow-violet-500/20 hover:scale-110 active:scale-95 transition-all"
+                                        className="w-14 h-14 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-500/20 hover:scale-110 active:scale-95 transition-all"
                                     >
                                         <Play size={24} fill="white" className="ml-1" />
                                     </button>
@@ -312,7 +312,7 @@ const Playlists = () => {
                                         detail?.songs?.map((s, i) => (
                                             <div key={s.id || i} className="group p-3 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition-colors">
                                                 <span className="w-4 text-center text-[10px] font-mono text-gray-600 group-hover:hidden">{i + 1}</span>
-                                                <button onClick={() => addToRoom(s)} className="hidden group-hover:flex w-4 items-center justify-center text-violet-400">
+                                                <button onClick={() => addToRoom(s)} className="hidden group-hover:flex w-4 items-center justify-center text-red-500">
                                                     <Play size={12} fill="currentColor" />
                                                 </button>
                                                 

@@ -107,7 +107,7 @@ const RoomDashboard = () => {
             {/* ── Header ── */}
             <header className="px-4 sm:px-8 py-3 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl sticky top-0 z-[60]">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
                         <Music2 size={20} className="text-white" />
                     </div>
                     <div>
@@ -126,14 +126,14 @@ const RoomDashboard = () => {
 
                     <button 
                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                        className={`p-2.5 rounded-xl transition-all active:scale-95 lg:hidden ${isSidebarOpen ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-300'}`}
+                        className={`p-2.5 rounded-xl transition-all active:scale-95 lg:hidden ${isSidebarOpen ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-300'}`}
                     >
                         <ListMusic size={18} />
                     </button>
 
                     <button
                         onClick={copyInvite}
-                        className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-500/10"
+                        className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-red-500/10"
                     >
                         {isCopied ? <Check size={14} /> : <Share2 size={14} />}
                         {isCopied ? 'Copied' : 'Invite'}
@@ -141,7 +141,7 @@ const RoomDashboard = () => {
 
                     <div className="hidden md:flex -space-x-2">
                         {users?.slice(0, 3).map((u, i) => (
-                            <div key={u.id || `u-${i}`} className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 border-2 border-[#0c0b0f] flex items-center justify-center text-[10px] font-black uppercase shadow-xl" title={u.name}>
+                            <div key={u.id || `u-${i}`} className="w-9 h-9 rounded-full bg-gradient-to-tr from-red-600 to-rose-600 border-2 border-[#0c0b0f] flex items-center justify-center text-[10px] font-black uppercase shadow-xl" title={u.name}>
                                 {u.name.substring(0, 2)}
                             </div>
                         ))}
@@ -175,7 +175,7 @@ const RoomDashboard = () => {
                                 <MusicPlayer />
                                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/5 group-hover:h-2 transition-all">
                                     <motion.div
-                                        className="h-full bg-blue-500 shadow-[0_0_20px_#3b82f6]"
+                                        className="h-full bg-red-500 shadow-[0_0_20px_#ef4444]"
                                         animate={{ width: `${(playbackTime / (duration || 1)) * 100}%` }}
                                         transition={{ type: 'spring', damping: 20, stiffness: 100 }}
                                     />
@@ -193,7 +193,7 @@ const RoomDashboard = () => {
                     <div className="max-w-4xl mx-auto w-full mb-28 lg:mb-10">
                         <div className="flex items-center justify-between mb-6 px-2">
                             <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Source Select</h3>
-                            <button onClick={copyInvite} className="sm:hidden text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 px-4 py-1.5 rounded-full border border-blue-500/10">Invite Friends</button>
+                            <button onClick={copyInvite} className="sm:hidden text-[10px] font-black text-red-400 uppercase tracking-widest bg-red-500/10 px-4 py-1.5 rounded-full border border-red-500/10">Invite Friends</button>
                         </div>
                         
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -207,8 +207,8 @@ const RoomDashboard = () => {
                                 <div><p className="font-black text-sm uppercase tracking-wider">Spotify</p><p className="text-[10px] text-gray-500 mt-1">Resolve Matches</p></div>
                             </motion.button>
 
-                            <motion.button onClick={() => document.getElementById('audio-upload')?.click()} whileHover={{ y: -4, backgroundColor: 'rgba(59, 130, 246, 0.05)' }} whileTap={{ scale: 0.98 }} className="group relative bg-white/[0.02] border border-white/5 rounded-3xl p-8 flex flex-col items-center gap-4 text-center transition-all hover:border-blue-500/30">
-                                <div className="p-4 bg-blue-400/10 rounded-2xl text-blue-400 group-hover:scale-110 transition-transform">
+                            <motion.button onClick={() => document.getElementById('audio-upload')?.click()} whileHover={{ y: -4, backgroundColor: 'rgba(239, 68, 68, 0.05)' }} whileTap={{ scale: 0.98 }} className="group relative bg-white/[0.02] border border-white/5 rounded-3xl p-8 flex flex-col items-center gap-4 text-center transition-all hover:border-red-500/30">
+                                <div className="p-4 bg-red-400/10 rounded-2xl text-red-400 group-hover:scale-110 transition-transform">
                                     {uploading ? <Loader2 className="animate-spin" size={24} /> : <Upload size={24} />}
                                 </div>
                                 <div><p className="font-black text-sm uppercase tracking-wider">Upload</p><p className="text-[10px] text-gray-500 mt-1">MP3 / WAV Files</p></div>
@@ -234,7 +234,7 @@ const RoomDashboard = () => {
                         >
                             <div className="p-6 sm:p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
                                 <div className="flex items-center gap-3">
-                                    <ListMusic className="text-blue-500" size={20} />
+                                    <ListMusic className="text-red-500" size={20} />
                                     <h3 className="font-black text-[11px] uppercase tracking-[0.3em]">Next Tracks</h3>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -257,12 +257,12 @@ const RoomDashboard = () => {
                                             key={song.id || `s-${i}`}
                                             initial={{ opacity: 0, scale: 0.95 }}
                                             animate={{ opacity: 1, scale: 1 }}
-                                            className={`flex items-center gap-4 p-4 rounded-[1.5rem] hover:bg-white/5 group transition-all border border-transparent ${currentSong?.id === song.id ? 'bg-blue-500/10 border-blue-500/20 shadow-2xl' : ''}`}
+                                            className={`flex items-center gap-4 p-4 rounded-[1.5rem] hover:bg-white/5 group transition-all border border-transparent ${currentSong?.id === song.id ? 'bg-red-500/10 border-red-500/20 shadow-2xl' : ''}`}
                                         >
                                             <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-white/5 border border-white/5 relative group-hover:scale-105 transition-transform">
                                                 <img src={song.thumbnail} className="w-full h-full object-cover" alt="" />
                                                 {currentSong?.id === song.id && (
-                                                    <div className="absolute inset-0 bg-blue-600/60 flex items-center justify-center">
+                                                    <div className="absolute inset-0 bg-red-600/60 flex items-center justify-center">
                                                         <div className="flex gap-1 items-end h-3">
                                                             {[1,2,3].map(j => <motion.div key={j} animate={{ height: [4, 12, 4] }} transition={{ duration: 0.5, repeat: Infinity, delay: j*0.1 }} className="w-1 bg-white" />)}
                                                         </div>
@@ -270,15 +270,15 @@ const RoomDashboard = () => {
                                                 )}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h4 className={`font-bold text-sm truncate ${currentSong?.id === song.id ? 'text-blue-400' : 'text-white'}`}>{song.title}</h4>
+                                                <h4 className={`font-bold text-sm truncate ${currentSong?.id === song.id ? 'text-red-400' : 'text-white'}`}>{song.title}</h4>
                                                 <p className="text-[10px] text-gray-500 truncate uppercase font-bold tracking-widest mt-0.5">{song.artist}</p>
                                             </div>
                                             
                                             <div className="flex items-center gap-2 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                                                 <div className="flex flex-col items-center scale-90">
-                                                    <button onClick={() => socket.emit('vote', { room_id, song_id: song.id, value: 1 })} className="text-gray-600 hover:text-emerald-400"><ChevronUp size={20} /></button>
+                                                    <button onClick={() => socket.emit('vote', { room_id, song_id: song.id, value: 1 })} className="text-gray-600 hover:text-red-400"><ChevronUp size={20} /></button>
                                                     <span className="text-[10px] font-black text-gray-400">{song.votes || 0}</span>
-                                                    <button onClick={() => socket.emit('vote', { room_id, song_id: song.id, value: -1 })} className="text-gray-600 hover:text-red-400"><ChevronDown size={20} /></button>
+                                                    <button onClick={() => socket.emit('vote', { room_id, song_id: song.id, value: -1 })} className="text-gray-600 hover:text-red-600"><ChevronDown size={20} /></button>
                                                 </div>
                                                 <button onClick={() => removeSong(song.id)} className="p-2 text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                                             </div>

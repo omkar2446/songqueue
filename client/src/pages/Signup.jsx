@@ -34,7 +34,7 @@ const Signup = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[var(--bg-color)] flex items-center justify-center p-6 selection:bg-violet-500/30 overflow-hidden relative transition-colors duration-500">
+        <div className="min-h-screen bg-[var(--bg-color)] flex items-center justify-center p-6 selection:bg-red-500/30 overflow-hidden relative transition-colors duration-500">
             <AntigravityBackground />
             
             <motion.div 
@@ -60,7 +60,7 @@ const Signup = () => {
                         {/* Branding */}
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-[10px] flex items-center justify-center shadow-lg shadow-purple-500/10 branding-glow">
+                                <div className="w-9 h-9 bg-gradient-to-tr from-red-600 to-rose-600 rounded-[10px] flex items-center justify-center shadow-lg shadow-red-500/10 branding-glow">
                                     <Music size={18} className="text-white" />
                                 </div>
                                 <span className="text-lg font-black tracking-tight premium-text">SYNCO.</span>
@@ -78,7 +78,7 @@ const Signup = () => {
                                 <div className="space-y-1.5 px-1">
                                     <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 ml-1">Full Name</label>
                                     <div className="relative group">
-                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors" size={18} />
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-red-500 transition-colors" size={18} />
                                         <input 
                                             type="text" 
                                             required
@@ -93,7 +93,7 @@ const Signup = () => {
                                 <div className="space-y-1.5 px-1">
                                     <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 ml-1">Email Address</label>
                                     <div className="relative group">
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors" size={18} />
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-red-500 transition-colors" size={18} />
                                         <input 
                                             type="email" 
                                             required
@@ -108,7 +108,7 @@ const Signup = () => {
                                 <div className="space-y-1.5 px-1">
                                     <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 ml-1">Password</label>
                                     <div className="relative group">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors" size={18} />
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-red-500 transition-colors" size={18} />
                                         <input 
                                             type="password" 
                                             required
@@ -138,7 +138,7 @@ const Signup = () => {
                             <div className="text-center pt-2">
                                 <p className="text-sm text-gray-500">
                                     Already have an account?{' '}
-                                    <button type="button" onClick={() => navigate('/login')} className="text-blue-500 font-bold hover:underline transition-all">Sign in</button>
+                                    <button type="button" onClick={() => navigate('/login')} className="text-red-500 font-bold hover:underline transition-all">Sign in</button>
                                 </p>
                             </div>
                         </form>

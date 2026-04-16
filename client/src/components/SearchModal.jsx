@@ -64,10 +64,10 @@ const TABS = [
         id: 'direct',
         label: 'Direct Link',
         icon: '🔗',
-        color: 'text-blue-400',
-        bg: 'bg-blue-500/20',
-        border: 'border-blue-500/30',
-        activeBg: 'bg-blue-500',
+        color: 'text-red-400',
+        bg: 'bg-red-500/20',
+        border: 'border-red-500/30',
+        activeBg: 'bg-red-500',
         placeholder: 'Paste a direct URL to an MP3, WAV, or video file',
         hint: 'Any public audio/video URL — served from any CDN or server',
     },
@@ -298,7 +298,7 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
                                 />
                                 {status === 'ok' && <CheckCircle2 size={18} className="text-emerald-400 flex-shrink-0" />}
                                 {status === 'error' && <AlertCircle size={18} className="text-red-400 flex-shrink-0" />}
-                                {status === 'loading' && <Loader2 size={18} className="text-blue-400 animate-spin flex-shrink-0" />}
+                                {status === 'loading' && <Loader2 size={18} className="text-red-400 animate-spin flex-shrink-0" />}
                             </div>
                             <p className={`text-[11px] mt-2 px-1 ${status === 'error' ? 'text-red-400' : 'text-gray-600'}`}>
                                 {status === 'error' ? errMsg : currentTab.hint}

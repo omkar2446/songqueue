@@ -7,6 +7,7 @@ import RoomDashboard from './pages/RoomDashboard';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Playlists from './pages/Playlists';
+import LandingPage from './pages/LandingPage';
 
 function App() {
     const spotlightRef = useRef(null);
@@ -29,7 +30,8 @@ function App() {
             <div className="min-h-screen bg-black relative">
                 <div ref={spotlightRef} className="mouse-spotlight hidden sm:block" />
                 <Routes>
-                  <Route path="/" element={<JoinRoom />} />
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/join" element={<JoinRoom />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/playlists" element={<Playlists />} />

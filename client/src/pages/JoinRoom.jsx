@@ -72,7 +72,7 @@ const JoinRoom = () => {
                         {/* Branding */}
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-[10px] flex items-center justify-center shadow-lg shadow-purple-500/10 branding-glow">
+                                <div className="w-9 h-9 bg-gradient-to-tr from-red-600 to-rose-600 rounded-[10px] flex items-center justify-center shadow-lg shadow-red-500/10 branding-glow">
                                     <Music size={18} className="text-white" />
                                 </div>
                                 <span className="text-lg font-black tracking-tight premium-text">SYNCO.</span>
@@ -111,15 +111,15 @@ const JoinRoom = () => {
                         <div className="space-y-6">
                             {mode === 'create' && !user ? (
                                 <div className="py-6 text-center space-y-6">
-                                    <div className="w-16 h-16 bg-violet-600/10 rounded-2xl flex items-center justify-center mx-auto">
-                                        <ShieldCheck size={32} className="text-violet-400" />
+                                    <div className="w-16 h-16 bg-red-600/10 rounded-2xl flex items-center justify-center mx-auto">
+                                        <ShieldCheck size={32} className="text-red-400" />
                                     </div>
                                     <div className="space-y-2">
                                         <h3 className="text-lg font-bold">Host Access Required</h3>
                                         <p className="text-sm text-gray-500 px-6">Sign in to start broadcasting your own music room.</p>
                                     </div>
                                     <div className="flex flex-col gap-3 px-4">
-                                        <button onClick={() => navigate('/login')} className="w-full bg-violet-600 hover:bg-violet-500 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-violet-500/20">
+                                        <button onClick={() => navigate('/login')} className="w-full bg-red-600 hover:bg-red-500 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-500/20">
                                             Sign In
                                         </button>
                                         <button onClick={() => navigate('/signup')} className="w-full bg-white/5 hover:bg-white/10 text-[var(--text-color)] py-4 rounded-2xl font-bold transition-all border border-white/5">
@@ -136,7 +136,7 @@ const JoinRoom = () => {
                                                 <input 
                                                     type="text"
                                                     required
-                                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-blue-500/50 focus:bg-blue-500/5 transition-all outline-none"
+                                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-red-500/50 focus:bg-red-500/5 transition-all outline-none"
                                                     placeholder="e.g. Alex"
                                                     value={formData.name}
                                                     onChange={e => setFormData({...formData, name: e.target.value})}
@@ -149,7 +149,7 @@ const JoinRoom = () => {
                                             <div className="relative group">
                                                 <input 
                                                     type="email"
-                                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-blue-500/50 focus:bg-blue-500/5 transition-all outline-none"
+                                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-red-500/50 focus:bg-red-500/5 transition-all outline-none"
                                                     placeholder="Enter email to persist library"
                                                     value={formData.email}
                                                     onChange={e => setFormData({...formData, email: e.target.value})}
@@ -169,7 +169,7 @@ const JoinRoom = () => {
                                                     <input 
                                                         type="text"
                                                         required={mode === 'join'}
-                                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-blue-500/50 focus:bg-blue-500/5 transition-all outline-none"
+                                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-red-500/50 focus:bg-red-500/5 transition-all outline-none"
                                                         placeholder="Enter 8-digit code"
                                                         value={formData.roomId}
                                                         onChange={e => setFormData({...formData, roomId: e.target.value})}
@@ -192,10 +192,10 @@ const JoinRoom = () => {
                                     
                                     <button 
                                         disabled={loading}
-                                        className="w-full bg-white text-black font-black py-5 rounded-2xl shadow-[0_20px_40px_-10px_rgba(255,255,255,0.2)] hover:shadow-[0_25px_50px_-12px_rgba(255,255,255,0.3)] transition-all active:scale-[0.98] disabled:opacity-50 mt-4 flex items-center justify-center gap-3 text-base"
+                                        className="w-full bg-red-600 text-white font-black py-5 rounded-2xl shadow-[0_20px_40px_-10px_rgba(255,0,0,0.2)] hover:shadow-[0_25px_50px_-12px_rgba(255,0,0,0.3)] transition-all active:scale-[0.98] disabled:opacity-50 mt-4 flex items-center justify-center gap-3 text-base"
                                     >
                                         {loading ? (
-                                            <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                         ) : (
                                             <>
                                                 {mode === 'create' ? <PlusCircle size={20} /> : <LogIn size={20} />}

@@ -68,8 +68,8 @@ const DevicesPanel = ({ isOpen, onClose }) => {
                         {/* Header */}
                         <div className="p-6 border-b border-white/5 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-emerald-500/20 rounded-xl">
-                                    <Radio size={20} className="text-emerald-400" />
+                                <div className="p-2 bg-red-500/20 rounded-xl">
+                                    <Radio size={20} className="text-red-400" />
                                 </div>
                                 <div>
                                     <h2 className="font-bold text-lg">Connected Devices</h2>
@@ -97,7 +97,7 @@ const DevicesPanel = ({ isOpen, onClose }) => {
                                         className="flex items-center gap-3 p-3 rounded-xl bg-white/5 group"
                                     >
                                         {/* Avatar */}
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-sm uppercase flex-shrink-0">
+                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-600 to-rose-600 flex items-center justify-center font-bold text-sm uppercase flex-shrink-0 text-white">
                                             {u.name?.substring(0, 2)}
                                         </div>
 
@@ -111,13 +111,13 @@ const DevicesPanel = ({ isOpen, onClose }) => {
                                                     </span>
                                                 )}
                                                 {u.id === user?.id && (
-                                                    <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">
+                                                    <span className="text-[10px] bg-red-500/20 text-red-100 px-2 py-0.5 rounded-full">
                                                         You
                                                     </span>
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-1.5 mt-0.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                                                 <span className="text-[10px] text-gray-500">Live</span>
                                             </div>
                                         </div>
@@ -146,13 +146,13 @@ const DevicesPanel = ({ isOpen, onClose }) => {
                             <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/10">
                                 <div className="flex-1">
                                     <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Room ID</p>
-                                    <p className="font-mono font-bold text-xl tracking-widest text-blue-400">{roomId}</p>
+                                    <p className="font-mono font-bold text-xl tracking-widest text-red-500">{roomId}</p>
                                 </div>
                                 <button
                                     onClick={copyId}
-                                    className="p-3 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl transition-colors"
+                                    className="p-3 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-colors"
                                 >
-                                    {copied ? <Check size={18} className="text-emerald-400" /> : <Copy size={18} className="text-blue-400" />}
+                                    {copied ? <Check size={18} className="text-emerald-400" /> : <Copy size={18} className="text-red-500" />}
                                 </button>
                             </div>
 
@@ -186,7 +186,7 @@ const DevicesPanel = ({ isOpen, onClose }) => {
                             {/* Copy Link Button */}
                             <button
                                 onClick={copyLink}
-                                className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.3)]"
+                                className="w-full py-3 bg-red-600 hover:bg-red-500 rounded-2xl text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(220,38,38,0.3)] text-white"
                             >
                                 {copied ? <Check size={16} /> : <Copy size={16} />}
                                 {copied ? 'Link Copied!' : 'Copy Invite Link'}

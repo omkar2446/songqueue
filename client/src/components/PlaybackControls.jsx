@@ -51,7 +51,7 @@ const SeekBar = ({ current, total, onSeek }) => {
         >
             <div className="w-full h-1 group-hover:h-1.5 transition-all rounded-full bg-white/10 overflow-hidden">
                 <motion.div
-                    className="h-full bg-gradient-to-r from-blue-500 to-violet-500 rounded-full"
+                    className="h-full bg-gradient-to-r from-red-500 to-rose-600 rounded-full"
                     animate={{ width: `${pct}%` }}
                     transition={{ type: 'spring', stiffness: 300, damping: 40, mass: 0.5 }}
                 />
@@ -90,9 +90,9 @@ const CrossfadePopup = ({ value, onChange, onClose }) => (
                 type="range" min="0" max="12" step="0.5"
                 value={value}
                 onChange={e => onChange(parseFloat(e.target.value))}
-                className="flex-1 accent-blue-500 cursor-pointer"
+                className="flex-1 accent-red-500 cursor-pointer"
             />
-            <span className="text-sm font-mono text-blue-400 w-10">{value}s</span>
+            <span className="text-sm font-mono text-red-500 w-10">{value}s</span>
         </div>
         <p className="text-[11px] text-gray-600 mt-2">Smooth blend between songs (0 = instant)</p>
     </motion.div>
@@ -252,7 +252,7 @@ const PlaybackControls = ({ onOpenEQ }) => {
                     <div className="relative">
                         <button
                             onClick={() => { setShowSpeed(v => !v); setShowCrossfade(false); }}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all ${playbackRate !== 1 ? 'bg-violet-500/20 text-violet-300' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all ${playbackRate !== 1 ? 'bg-red-500/20 text-red-300' : 'bg-white/5 text-gray-500 hover:text-white'}`}
                         >
                             <Gauge size={11} />{playbackRate}×
                         </button>
@@ -267,7 +267,7 @@ const PlaybackControls = ({ onOpenEQ }) => {
                                     {SPEEDS.map(s => (
                                         <button key={s}
                                             onClick={() => { setPlaybackRate(s); emit('speed', s); setShowSpeed(false); }}
-                                            className={`w-full text-center py-1.5 rounded-xl text-xs font-bold transition-colors ${playbackRate === s ? 'bg-violet-500/30 text-violet-300' : 'hover:bg-white/5 text-gray-400'}`}
+                                            className={`w-full text-center py-1.5 rounded-xl text-xs font-bold transition-colors ${playbackRate === s ? 'bg-red-500/30 text-red-300' : 'hover:bg-white/5 text-gray-400'}`}
                                         >{s}×</button>
                                     ))}
                                 </motion.div>
@@ -293,18 +293,18 @@ const PlaybackControls = ({ onOpenEQ }) => {
                     <button
                         onClick={toggleShuffle}
                         title="Shuffle"
-                        className={`p-2 rounded-xl transition-all ${shuffleMode ? 'text-blue-400 bg-blue-500/10' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}
+                        className={`p-2 rounded-xl transition-all ${shuffleMode ? 'text-red-500 bg-red-500/10' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}
                     >
                         <Shuffle size={16} />
                     </button>
                     <button
                         onClick={cycleRepeat}
                         title={`Repeat: ${repeatLabel}`}
-                        className={`relative p-2 rounded-xl transition-all ${repeatMode > 0 ? 'text-blue-400 bg-blue-500/10' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}
+                        className={`relative p-2 rounded-xl transition-all ${repeatMode > 0 ? 'text-red-500 bg-red-500/10' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}
                     >
                         <RepeatIcon size={16} />
                         {repeatMode > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 text-[8px] font-bold bg-blue-500 text-white w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                            <span className="absolute -top-0.5 -right-0.5 text-[8px] font-bold bg-red-500 text-white w-3.5 h-3.5 rounded-full flex items-center justify-center">
                                 {repeatMode === 1 ? '∞' : '1'}
                             </span>
                         )}
@@ -346,7 +346,7 @@ const PlaybackControls = ({ onOpenEQ }) => {
                     <div className="w-0 overflow-hidden group-hover/vol:w-20 transition-all duration-300">
                         <input type="range" min="0" max="100" value={volume}
                             onChange={e => handleVolume(+e.target.value)}
-                            className="w-20 h-1 accent-blue-500 cursor-pointer"
+                            className="w-20 h-1 accent-red-500 cursor-pointer"
                         />
                     </div>
                 </div>
@@ -374,7 +374,7 @@ const PlaybackControls = ({ onOpenEQ }) => {
                 <div className="relative col-span-1">
                     <button
                         onClick={() => { setShowCrossfade(v => !v); setShowSpeed(false); }}
-                        className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${crossfadeDuration > 0 ? 'bg-purple-500/20 text-purple-400' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                        className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${crossfadeDuration > 0 ? 'bg-red-500/20 text-red-500' : 'bg-white/5 text-gray-500 hover:text-white'}`}
                     >
                         ⌁ Crossfade {crossfadeDuration > 0 ? `${crossfadeDuration}s` : ''}
                     </button>

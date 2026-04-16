@@ -59,7 +59,7 @@ const Login = () => {
                         {/* Branding */}
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-[10px] flex items-center justify-center shadow-lg shadow-purple-500/10 branding-glow">
+                                <div className="w-9 h-9 bg-gradient-to-tr from-red-600 to-rose-600 rounded-[10px] flex items-center justify-center shadow-lg shadow-red-500/10 branding-glow">
                                     <Music size={18} className="text-white" />
                                 </div>
                                 <span className="text-lg font-black tracking-tight premium-text">SYNCO.</span>
@@ -77,7 +77,7 @@ const Login = () => {
                                 <div className="space-y-1.5 px-1">
                                     <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 ml-1">Email Address</label>
                                     <div className="relative group">
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors" size={18} />
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-red-500 transition-colors" size={18} />
                                         <input 
                                             type="email" 
                                             required
@@ -92,7 +92,7 @@ const Login = () => {
                                 <div className="space-y-1.5 px-1">
                                     <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 ml-1">Password</label>
                                     <div className="relative group">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors" size={18} />
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-red-500 transition-colors" size={18} />
                                         <input 
                                             type="password" 
                                             required
@@ -122,7 +122,7 @@ const Login = () => {
                             <div className="text-center pt-2">
                                 <p className="text-sm text-gray-500">
                                     New to Synco?{' '}
-                                    <button type="button" onClick={() => navigate('/signup')} className="text-blue-500 font-bold hover:underline transition-all">Create account</button>
+                                    <button type="button" onClick={() => navigate('/signup')} className="text-red-500 font-bold hover:underline transition-all">Create account</button>
                                 </p>
                             </div>
                         </form>

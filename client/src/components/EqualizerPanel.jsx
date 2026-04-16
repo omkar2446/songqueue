@@ -8,7 +8,7 @@ const BANDS = [
     { label: 'Bass',     freq: '250Hz', index: 1, color: '#f97316' },
     { label: 'Mid',      freq: '1kHz',  index: 2, color: '#eab308' },
     { label: 'Presence', freq: '4kHz',  index: 3, color: '#22c55e' },
-    { label: 'Treble',   freq: '16kHz', index: 4, color: '#3b82f6' },
+    { label: 'Treble',   freq: '16kHz', index: 4, color: '#f43f5e' },
 ];
 
 const PRESETS = {
@@ -56,8 +56,8 @@ const EQCurve = ({ bands }) => {
             {/* EQ curve fill */}
             <defs>
                 <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                    <stop offset="0%" stopColor="#ff0000" stopOpacity="0.4" />
+                    <stop offset="100%" stopColor="#ff0000" stopOpacity="0" />
                 </linearGradient>
             </defs>
             <polygon
@@ -67,7 +67,7 @@ const EQCurve = ({ bands }) => {
             <polyline
                 points={points}
                 fill="none"
-                stroke="#3b82f6"
+                stroke="#ff0000"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -184,7 +184,7 @@ const EqualizerPanel = ({ isOpen, onClose }) => {
                                 <h2 className="font-bold text-lg flex items-center gap-2">
                                     🎚️ Equalizer
                                     {!allFlat && (
-                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg bg-blue-500/20 text-blue-400">
+                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg bg-red-500/20 text-red-400">
                                             ACTIVE
                                         </span>
                                     )}
@@ -258,7 +258,7 @@ const EqualizerPanel = ({ isOpen, onClose }) => {
                                         onClick={() => applyPreset(name)}
                                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                                             activePreset === name
-                                                ? 'bg-blue-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)]'
+                                                ? 'bg-red-600 text-white shadow-[0_4px_12px_rgba(220,38,38,0.35)]'
                                                 : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
                                         }`}
                                     >
@@ -266,7 +266,7 @@ const EqualizerPanel = ({ isOpen, onClose }) => {
                                     </button>
                                 ))}
                                 {activePreset === 'Custom' && (
-                                    <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-violet-500/20 text-violet-300 border border-violet-500/20">
+                                    <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/20">
                                         Custom
                                     </span>
                                 )}
