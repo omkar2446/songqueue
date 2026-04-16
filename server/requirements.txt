@@ -1,9 +1,8 @@
 # Core Framework
 Flask>=2.0.0
 Flask-SocketIO>=5.0.0
-Flask-SQLAlchemy>=2.5.0
+Flask-SQLAlchemy>=3.0.0
 Flask-Cors>=3.0.0
-Flask-Migrate>=3.1.0
 
 # Security & Utils
 PyJWT>=2.4.0
@@ -11,9 +10,9 @@ python-dotenv>=0.19.0
 requests>=2.26.0
 werkzeug>=2.0.0
 
-# Performance & Runtime
-eventlet>=0.33.0
+# Media Processing
+yt-dlp>=2023.0.0
+
+# Production Server
 gunicorn>=20.1.0
-
-# Media Processing (if applicable)
-
+psycopg2-binary>=2.9.0
