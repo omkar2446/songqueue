@@ -31,17 +31,18 @@ PRO_EMAILS = ['otambe655@gmail.com', 'SOlove1@gmail.com']
 # 3. ── App Initialization ──
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey-change-this')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///songqueue.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f"sqlite:///{os.path.join(app.instance_path, 'songqueue.db')}")
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
     # Fix for Render/Heroku postgres URLs
     app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
 
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
-
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
+
+if not os.path.exists(app.instance_path):
+    os.makedirs(app.instance_path)
 
 db = SQLAlchemy(app)
 
