@@ -107,7 +107,10 @@ with app.app_context():
                 "ALTER TABLE room ADD COLUMN repeat_type INTEGER DEFAULT 0",
                 "ALTER TABLE room ADD COLUMN shuffle_mode BOOLEAN DEFAULT FALSE",
                 "ALTER TABLE room ADD COLUMN created_at DATETIME",
-                "ALTER TABLE room ADD COLUMN expires_at DATETIME"
+                "ALTER TABLE room ADD COLUMN expires_at DATETIME",
+                "ALTER TABLE playlist_song ADD COLUMN url TEXT",
+                "ALTER TABLE song ADD COLUMN url TEXT",
+                "ALTER TABLE playlist ADD COLUMN is_public BOOLEAN DEFAULT FALSE"
             ]:
                 try: 
                     conn.execute(text(stmt))
@@ -142,6 +145,7 @@ class Playlist(db.Model):
     id = db.Column(db.String(36), primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.String(36), db.ForeignKey('user.id'))
+    is_public = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class PlaylistSong(db.Model):
@@ -153,6 +157,7 @@ class PlaylistSong(db.Model):
     source = db.Column(db.String(20))
     source_id = db.Column(db.String(255))
     thumbnail = db.Column(db.String(500))
+    url = db.Column(db.Text, nullable=True) # Direct access URL if needed
     created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class Song(db.Model):
@@ -163,6 +168,7 @@ class Song(db.Model):
     source = db.Column(db.String(20))
     source_id = db.Column(db.String(255))
     thumbnail = db.Column(db.String(500))
+    url = db.Column(db.Text, nullable=True) # Direct access URL if needed
     added_by_name = db.Column(db.String(100))
     room_id = db.Column(db.String(36), db.ForeignKey('room.id'))
     votes = db.Column(db.Integer, default=0)
@@ -310,11 +316,31 @@ def stream_yt(video_id):
 @token_required
 def get_playlists(user_id):
     playlists = Playlist.query.filter_by(user_id=user_id).all()
-    return jsonify([{
-        'id': p.id,
-        'name': p.name,
-        'count': PlaylistSong.query.filter_by(playlist_id=p.id).count()
-    } for p in playlists])
+    # Also fetch public playlists NOT owned by the user
+    public_playlists = Playlist.query.filter((Playlist.is_public == True) & (Playlist.user_id != user_id)).all()
+    
+    def serialize_p(p, is_own=True):
+        return {
+            'id': p.id,
+            'name': p.name,
+            'is_public': p.is_public,
+            'owner': User.query.get(p.user_id).name if not is_own else 'Me',
+            'count': PlaylistSong.query.filter_by(playlist_id=p.id).count()
+        }
+
+    return jsonify({
+        'my_playlists': [serialize_p(p) for p in playlists],
+        'public_playlists': [serialize_p(p, False) for p in public_playlists]
+    })
+
+@app.route('/api/playlists/<pid>/toggle-public', methods=['POST'])
+@token_required
+def toggle_playlist_visibility(user_id, pid):
+    p = Playlist.query.filter_by(id=pid, user_id=user_id).first()
+    if not p: return jsonify({'error': 'Not found'}), 404
+    p.is_public = not p.is_public
+    db.session.commit()
+    return jsonify({'success': True, 'is_public': p.is_public})
 
 @app.route('/api/playlists', methods=['POST'])
 @token_required
@@ -350,7 +376,8 @@ def add_to_playlist(user_id, pid):
         id=str(uuid.uuid4()), playlist_id=pid,
         title=d['title'], artist=d.get('artist'),
         duration=d.get('duration'), source=d['source'],
-        source_id=d['source_id'], thumbnail=d.get('thumbnail')
+        source_id=d['source_id'], thumbnail=d.get('thumbnail'),
+        url=d.get('url', '')
     )
     db.session.add(s)
     db.session.commit()
@@ -401,8 +428,23 @@ def login():
         data = request.json
         email, password = data.get('email'), data.get('password')
         user = User.query.filter_by(email=email).first()
+        
+        # AUTO-RECOVERY: If the DB was wiped but user knows their stuff, re-register them
         if not user:
-            return jsonify({'error': 'Account not found. If the server restarted, you may need to Sign Up again or use a persistent database.'}), 401
+            # Check if we are in volatile SQLite mode
+            if "postgresql" not in app.config['SQLALCHEMY_DATABASE_URI']:
+                user = User(
+                    id=str(uuid.uuid4()), 
+                    name=email.split('@')[0], 
+                    email=email, 
+                    password_hash=generate_password_hash(password),
+                    is_pro=(email in PRO_EMAILS)
+                )
+                db.session.add(user)
+                db.session.commit()
+                logger.info(f"Auto-recovered account for {email} after DB wipe.")
+            else:
+                return jsonify({'error': 'Account not found. Please Sign Up.'}), 401
         
         if not check_password_hash(user.password_hash, password):
             return jsonify({'error': 'Invalid password'}), 401
@@ -478,7 +520,16 @@ def upload_file(room_id):
         filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         
-        song = Song(id=str(uuid.uuid4()), title=file.filename, artist="Upload", source='upload', source_id=filename, added_by_name=request.form.get('user_name', 'Anonymous'), room_id=room_id)
+        song = Song(
+            id=str(uuid.uuid4()), 
+            title=file.filename, 
+            artist="Upload", 
+            source='upload', 
+            source_id=filename, 
+            url=f"{BASE_URL}/api/uploads/{filename}",
+            added_by_name=request.form.get('user_name', 'Anonymous'), 
+            room_id=room_id
+        )
         db.session.add(song)
         
         room = Room.query.get(room_id)
@@ -508,6 +559,7 @@ def add_to_room_api(room_id):
         source=data['source'],
         source_id=data['source_id'],
         thumbnail=data.get('thumbnail', ''),
+        url=data.get('url', ''),
         added_by_name=data.get('added_by', 'Anonymous'),
         position=pos
     )

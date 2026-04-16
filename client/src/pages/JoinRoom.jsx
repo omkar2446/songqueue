@@ -123,22 +123,27 @@ const JoinRoom = () => {
 
                         {/* Form Content */}
                         <div className="space-y-6">
-                            {mode === 'create' && !user ? (
+                            {mode === 'create' && !user && !localStorage.getItem('synco_anon_email') ? (
                                 <div className="py-6 text-center space-y-6">
                                     <div className="w-16 h-16 bg-red-600/10 rounded-2xl flex items-center justify-center mx-auto">
                                         <ShieldCheck size={32} className="text-red-400" />
                                     </div>
                                     <div className="space-y-2">
-                                        <h3 className="text-lg font-bold">Host Access Required</h3>
-                                        <p className="text-sm text-gray-500 px-6">Sign in to start broadcasting your own music room.</p>
+                                        <h3 className="text-lg font-bold">Start Broadcasting</h3>
+                                        <p className="text-sm text-gray-500 px-6">Create a room instantly as a guest or sign in for permanent playlists.</p>
                                     </div>
                                     <div className="flex flex-col gap-3 px-4">
-                                        <button onClick={() => navigate('/login')} className="w-full bg-red-600 hover:bg-red-500 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-500/20">
-                                            Sign In
+                                        <button onClick={() => setFormData({...formData, name: 'Host'})} className="w-full bg-red-600 hover:bg-red-500 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-500/20">
+                                            Continue as Guest
                                         </button>
-                                        <button onClick={() => navigate('/signup')} className="w-full bg-white/5 hover:bg-white/10 text-[var(--text-color)] py-4 rounded-2xl font-bold transition-all border border-white/5">
-                                            Create Account
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => navigate('/login')} className="flex-1 bg-white/5 hover:bg-white/10 text-[var(--text-color)] py-3 rounded-xl font-bold transition-all border border-white/5 text-xs">
+                                                Sign In
+                                            </button>
+                                            <button onClick={() => navigate('/signup')} className="flex-1 bg-white/5 hover:bg-white/10 text-[var(--text-color)] py-3 rounded-xl font-bold transition-all border border-white/5 text-xs">
+                                                Register
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (

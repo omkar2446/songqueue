@@ -13,7 +13,8 @@ const Playlists = () => {
     const { user, logout, room } = useRoom();
     const navigate = useNavigate();
     
-    const [playlists, setPlaylists] = useState([]);
+    const [myPlaylists, setMyPlaylists] = useState([]);
+    const [publicPlaylists, setPublicPlaylists] = useState([]);
     const [loading, setLoading]     = useState(true);
     const [selected, setSelected]   = useState(null); // Selected playlist ID
     const [detail, setDetail]       = useState(null); // Selected playlist details (songs)
@@ -69,7 +70,8 @@ const Playlists = () => {
     const fetchPlaylists = async () => {
         try {
             const res = await api.get('/playlists');
-            setPlaylists(res.data);
+            setMyPlaylists(res.data.my_playlists || []);
+            setPublicPlaylists(res.data.public_playlists || []);
         } catch (err) {
             console.error('Fetch playlists failed', err);
         } finally {
@@ -151,6 +153,14 @@ const Playlists = () => {
         }
     };
 
+    const togglePublic = async (id, e) => {
+        e.stopPropagation();
+        try {
+            await api.post(`/playlists/${id}/toggle-public`);
+            fetchPlaylists();
+        } catch (err) { console.error(err); }
+    };
+
     const handleAddSong = async (song) => {
         if (!selected) return;
         try {
@@ -228,39 +238,86 @@ const Playlists = () => {
                     </AnimatePresence>
 
                     <div className="space-y-2">
-                        {loading ? (
-                            <div className="flex justify-center p-12"><Loader2 className="animate-spin text-gray-700" size={32} /></div>
-                        ) : playlists.length === 0 ? (
-                            <div className="p-8 text-center bg-white/5 rounded-3xl border border-dashed border-white/10">
-                                <Music2 size={32} className="mx-auto mb-3 opacity-20" />
-                                <p className="text-sm text-gray-500 font-medium italic">No playlists yet</p>
-                            </div>
-                        ) : (
-                            playlists.map((p, i) => (
-                                <motion.div
-                                    key={p.id || i}
-                                    whileHover={{ x: 4 }}
-                                    onClick={() => setSelected(p.id)}
-                                    className={`p-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all group ${selected === p.id ? 'bg-red-500/20 border-red-500/30 border' : 'bg-white/5 border border-white/5 hover:bg-white/10'}`}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-gradient-to-br from-red-600/20 to-rose-600/20 rounded-xl flex items-center justify-center">
-                                            <Music2 className={selected === p.id ? 'text-red-400' : 'text-gray-600 group-hover:text-white transition-colors'} size={20} />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-sm">{p.name}</p>
-                                            <p className="text-[10px] text-gray-500 uppercase tracking-widest">{p.count} songs</p>
-                                        </div>
-                                    </div>
-                                    <button 
-                                        onClick={(e) => handleDelete(p.id, e)}
-                                        className="opacity-0 group-hover:opacity-100 p-2 text-gray-600 hover:text-red-400 transition-all"
+                    <div className="space-y-6">
+                        {/* My Playlists */}
+                        <div className="space-y-2">
+                            {loading ? (
+                                <div className="flex justify-center p-12"><Loader2 className="animate-spin text-gray-700" size={32} /></div>
+                            ) : myPlaylists.length === 0 ? (
+                                <div className="p-8 text-center bg-white/5 rounded-3xl border border-dashed border-white/10">
+                                    <Music2 size={32} className="mx-auto mb-3 opacity-20" />
+                                    <p className="text-sm text-gray-500 font-medium italic">No playlists yet</p>
+                                </div>
+                            ) : (
+                                myPlaylists.map((p, i) => (
+                                    <motion.div
+                                        key={p.id || i}
+                                        whileHover={{ x: 4 }}
+                                        onClick={() => setSelected(p.id)}
+                                        className={`p-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all group ${selected === p.id ? 'bg-red-500/20 border-red-500/30 border' : 'bg-white/5 border border-white/5 hover:bg-white/10'}`}
                                     >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </motion.div>
-                            ))
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-gradient-to-br from-red-600/20 to-rose-600/20 rounded-xl flex items-center justify-center">
+                                                <Music2 className={selected === p.id ? 'text-red-400' : 'text-gray-600 group-hover:text-white transition-colors'} size={20} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="font-bold text-sm truncate">{p.name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-[10px] text-gray-500 uppercase tracking-widest">{p.count} songs</p>
+                                                    {p.is_public && <span className="text-[8px] bg-emerald-500/10 text-emerald-500 px-1 rounded font-black">PUBLIC</span>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button 
+                                                onClick={(e) => togglePublic(p.id, e)}
+                                                className={`p-2 rounded-lg transition-all ${p.is_public ? 'text-emerald-500 hover:bg-emerald-500/10' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}
+                                                title={p.is_public ? "Make Private" : "Make Public"}
+                                            >
+                                                <Heart size={14} fill={p.is_public ? "currentColor" : "none"} />
+                                            </button>
+                                            <button 
+                                                onClick={(e) => handleDelete(p.id, e)}
+                                                className="opacity-0 group-hover:opacity-100 p-2 text-gray-600 hover:text-red-400 transition-all"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Public Discovery */}
+                        {publicPlaylists.length > 0 && (
+                            <div className="space-y-4 pt-4 border-t border-white/5">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 px-2 flex items-center gap-2">
+                                    <Search size={12} /> Community Discovery
+                                </h3>
+                                <div className="space-y-2">
+                                    {publicPlaylists.map((p, i) => (
+                                        <motion.div
+                                            key={p.id}
+                                            whileHover={{ x: 4 }}
+                                            onClick={() => setSelected(p.id)}
+                                            className={`p-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all group ${selected === p.id ? 'bg-violet-500/20 border-violet-500/30 border' : 'bg-white/5 border border-white/5 hover:bg-white/10'}`}
+                                        >
+                                            <div className="flex items-center gap-4 min-w-0">
+                                                <div className="w-10 h-10 bg-violet-500/10 rounded-xl flex items-center justify-center">
+                                                    <Library className="text-violet-400" size={18} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-sm truncate">{p.name}</p>
+                                                    <p className="text-[9px] text-violet-400 font-bold uppercase tracking-widest truncate">By {p.owner}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-[10px] text-gray-600 font-mono">{p.count} tracks</div>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
+                    </div>
                     </div>
                 </div>
 
@@ -280,9 +337,10 @@ const Playlists = () => {
                                         <p className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] mb-3">Playlist</p>
                                         <h2 className="text-5xl font-black mb-4 tracking-tight">{detail?.name}</h2>
                                         <div className="flex items-center gap-3 text-sm font-medium text-gray-400">
-                                            <span className="text-red-400">{user?.name}</span>
+                                            <span className="text-red-400">{detail?.owner || user?.name}</span>
                                             <span className="w-1 h-1 rounded-full bg-gray-700" />
                                             <span>{detail?.songs?.length || 0} tracks</span>
+                                            {detail?.is_public && <span className="ml-2 text-[10px] bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full font-black border border-emerald-500/10">PUBLIC</span>}
                                         </div>
                                     </div>
                                 </div>
