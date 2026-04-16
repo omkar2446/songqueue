@@ -122,6 +122,8 @@ with app.app_context():
             "ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0",
             "ALTER TABLE user ADD COLUMN room_id VARCHAR(36)",
             "ALTER TABLE user ADD COLUMN password_hash VARCHAR(255)",
+            "ALTER TABLE room ADD COLUMN name VARCHAR(100)",
+            "ALTER TABLE room ADD COLUMN owner_id VARCHAR(36)",
             "ALTER TABLE room ADD COLUMN last_updated_at DATETIME",
             "ALTER TABLE room ADD COLUMN repeat_type INTEGER DEFAULT 0",
             "ALTER TABLE room ADD COLUMN shuffle_mode BOOLEAN DEFAULT 0",
@@ -269,37 +271,47 @@ def remove_from_playlist(user_id, pid, sid):
 def signup():
     data = request.json
     name, email, password = data.get('name'), data.get('email'), data.get('password')
-    if not all([name, email, password]):
-        return jsonify({'error': 'All fields are required'}), 400
-    
-    user = User.query.filter_by(email=email).first()
-    if user:
-        if user.password_hash: return jsonify({'error': 'Email already registered'}), 400
-        user.name, user.password_hash = name, generate_password_hash(password)
-    else:
-        user = User(
-            id=str(uuid.uuid4()), name=name, email=email,
-            password_hash=generate_password_hash(password),
-            is_pro=(email in PRO_EMAILS)
-        )
-        db.session.add(user)
-    
-    db.session.commit()
-    return jsonify({'token': create_token(user.id), 'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_pro': user.is_pro}})
+    try:
+        if not all([name, email, password]):
+            return jsonify({'error': 'All fields are required'}), 400
+        
+        user = User.query.filter_by(email=email).first()
+        if user:
+            if user.password_hash: return jsonify({'error': 'Email already registered'}), 400
+            user.name, user.password_hash = name, generate_password_hash(password)
+        else:
+            user = User(
+                id=str(uuid.uuid4()), name=name, email=email,
+                password_hash=generate_password_hash(password),
+                is_pro=(email in PRO_EMAILS)
+            )
+            db.session.add(user)
+        
+        db.session.commit()
+        return jsonify({'token': create_token(user.id), 'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_pro': user.is_pro}})
+    except Exception as e:
+        logger.error(f"Signup error: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    data = request.json
-    email, password = data.get('email'), data.get('password')
-    user = User.query.filter_by(email=email).first()
-    if not user or not check_password_hash(user.password_hash, password):
-        return jsonify({'error': 'Invalid email or password'}), 401
-    
-    if user.email in PRO_EMAILS and not user.is_pro:
-        user.is_pro = True
-        db.session.commit()
+    try:
+        data = request.json
+        email, password = data.get('email'), data.get('password')
+        user = User.query.filter_by(email=email).first()
+        if not user or not check_password_hash(user.password_hash, password):
+            return jsonify({'error': 'Invalid email or password'}), 401
+        
+        if user.email in PRO_EMAILS and not user.is_pro:
+            user.is_pro = True
+            db.session.commit()
 
-    return jsonify({'token': create_token(user.id), 'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_pro': user.is_pro}})
+        return jsonify({'token': create_token(user.id), 'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_pro': user.is_pro}})
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/auth/join', methods=['POST'])
 def join_session():
@@ -328,7 +340,8 @@ def join_session():
         return jsonify({'token': create_token(user.id), 'room_id': room_id, 'user': {'id': user.id, 'name': user.name, 'is_admin': user.is_admin, 'is_pro': user.is_pro}})
     except Exception as e:
         logger.error(f"Join error: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 # 10. ── Room & Player API ──
 @app.route('/api/room/<room_id>', methods=['GET'])
