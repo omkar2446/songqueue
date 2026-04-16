@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Playlists from './pages/Playlists';
 import LandingPage from './pages/LandingPage';
+import GlobalPlayerHost from './components/GlobalPlayerHost';
 
 function App() {
     const spotlightRef = useRef(null);
@@ -29,6 +30,7 @@ function App() {
           <BrowserRouter>
             <div className="min-h-screen bg-black relative">
                 <div ref={spotlightRef} className="mouse-spotlight hidden sm:block" />
+                <GlobalPlayerHost />
                 <Routes>
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/join" element={<JoinRoom />} />

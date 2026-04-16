@@ -122,6 +122,8 @@ const PlaybackControls = ({ onOpenEQ }) => {
 
     const [showSpeed,     setShowSpeed]     = useState(false);
     const [showCrossfade, setShowCrossfade] = useState(false);
+    const [showProModal,  setShowProModal]  = useState(false);
+    const [proPass,       setProPass]       = useState('');
     const [prevVol,       setPrevVol]       = useState(80);
     const lastPrevTap = useRef(0);
 
@@ -189,24 +191,37 @@ const PlaybackControls = ({ onOpenEQ }) => {
     };
     const toggleMute = () => handleVolume(volume === 0 ? prevVol : 0);
 
-    const togglePro = async () => {
-        if (user?.email !== 'otambe655@gmail.com') {
-            alert("PRO Mode is restricted to authorized accounts.");
-            return;
+    const togglePro = () => {
+        if (isPro) {
+            // Turning it off doesn't need a password
+            handleProActivation(false);
+        } else {
+            setShowProModal(true);
         }
-        const next = !isPro;
-        setIsPro(next);
-        
+    };
+
+    const handleProActivation = async (status) => {
+        setIsPro(status);
         try {
-            await api.post('/auth/update_pro', { is_pro: next });
-            // Update local user state if needed
+            await api.post('/auth/update_pro', { is_pro: status });
             const storedUser = JSON.parse(localStorage.getItem('user'));
             if (storedUser) {
-                storedUser.is_pro = next;
+                storedUser.is_pro = status;
                 localStorage.setItem('user', JSON.stringify(storedUser));
             }
         } catch (err) {
             console.error('Failed to sync PRO status', err);
+        }
+    };
+
+    const submitProPass = (e) => {
+        e.preventDefault();
+        if (proPass === 'myloveS') {
+            handleProActivation(true);
+            setShowProModal(false);
+            setProPass('');
+        } else {
+            alert("Incorrect access key.");
         }
     };
 
@@ -392,19 +407,66 @@ const PlaybackControls = ({ onOpenEQ }) => {
                 {/* PRO Toggle */}
                 <button
                     onClick={togglePro}
-                    disabled={user?.email !== 'otambe655@gmail.com'}
                     className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${
-                        user?.email !== 'otambe655@gmail.com' 
-                            ? 'opacity-30 cursor-not-allowed text-gray-700 bg-black/20'
-                            : isPro 
-                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/10' 
-                                : 'bg-white/5 text-gray-500 hover:text-white'
+                        isPro 
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/10' 
+                            : 'bg-white/5 text-gray-500 hover:text-white'
                     }`}
                 >
-                    {user?.email === 'otambe655@gmail.com' ? <Zap size={12} className={isPro ? "fill-amber-400" : ""} /> : "🔒"} 
-                    <span className="truncate">{user?.email === 'otambe655@gmail.com' ? (isPro ? 'PRO' : 'GO PRO') : 'PRO'}</span>
+                    <Zap size={12} className={isPro ? "fill-amber-400" : ""} />
+                    <span className="truncate">{isPro ? 'PRO' : 'GO PRO'}</span>
                 </button>
             </div>
+
+            {/* PRO Password Modal */}
+            <AnimatePresence>
+                {showProModal && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="w-full max-w-sm glass-card p-8 border-white/10"
+                        >
+                            <div className="flex flex-col items-center gap-4 text-center">
+                                <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20 shadow-2xl">
+                                    <Zap size={32} className="text-amber-500 fill-amber-500" />
+                                </div>
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-black text-white italic tracking-tight">Unlock PRO Access</h3>
+                                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Authorized Personnel Only</p>
+                                </div>
+                                
+                                <form onSubmit={submitProPass} className="w-full space-y-4 mt-4">
+                                    <input 
+                                        type="password"
+                                        autoFocus
+                                        value={proPass}
+                                        onChange={e => setProPass(e.target.value)}
+                                        placeholder="••••••••"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-center text-white placeholder:text-white/10 focus:border-amber-500/50 outline-none transition-all"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowProModal(false)}
+                                            className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button 
+                                            type="submit"
+                                            className="flex-[2] py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20"
+                                        >
+                                            Activate
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

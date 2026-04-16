@@ -1,41 +1,22 @@
-import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
-import YouTube from 'react-youtube';
+import React, { useEffect, useRef, useState, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoom } from '../context/RoomContext';
-import { useSocket } from '../context/SocketContext';
-import { BASE_URL } from '../services/api';
 import { Music2, WifiOff, Tv2, X, Sliders } from 'lucide-react';
 
 /**
- * MusicPlayer — Hybrid Player
- * Now with YouTube Proxying for Equalizer Support!
- * 
- * Logic:
- * 1. If NOT Youtube (Upload/Direct): Use Native Player. (EQ Works)
- * 2. If Youtube AND showVideo is FALSE: Use Native Player proxying the Audio Stream. (EQ Works!)
- * 3. If Youtube AND showVideo is TRUE: Use standard YouTube IFrame. (EQ Disabled due to CORS)
+ * MusicPlayer — UI Component
+ * Now purely visual, media elements are handled globally in App.jsx.
  */
 const MusicPlayer = () => {
     const {
-        currentSong, isPlaying, setIsPlaying,
-        playbackTime, setPlaybackTime,
-        setDuration, volume, isPro,
-        setYtPlayer,
-        eqBands, normalizeVolume,
-        resumeAudio,
+        currentSong, isPlaying, 
+        playbackError, showVideo, setShowVideo,
+        eqBands
     } = useRoom();
 
-    const socket = useSocket();
-    
-    const ytRef = useRef(null);
-    const nativeRef = useRef(null);
-    
-    const [isReady, setIsReady] = useState(false);
-    const [hasError, setHasError] = useState(false);
-    const [showVideo, setShowVideo] = useState(false);
+    const portalAnchorRef = useRef(null);
     const [songMeta, setSongMeta] = useState(null);
-    const pollInterval = useRef(null);
-
+    
     const isYoutube = currentSong?.source === 'youtube';
 
     // ── Static Metadata (YouTube oEmbed) ───────────────────
@@ -60,123 +41,45 @@ const MusicPlayer = () => {
             .catch(() => setSongMeta(null));
     }, [currentSong?.source_id, isYoutube]);
 
-    // ── Playback Polling ──────────────────────────────────
+    // ── Teleport logic: Position the global IFrame over this container ───
     useEffect(() => {
-        if (isPlaying && isReady) {
-            pollInterval.current = setInterval(() => {
-                try {
-                    let t = 0;
-                    if (isYoutube && showVideo && ytRef.current) {
-                        t = ytRef.current.getCurrentTime();
-                    } else if (nativeRef.current) {
-                        t = nativeRef.current.currentTime;
-                    }
-                    if (t) setPlaybackTime(t);
-                } catch (_) {}
-            }, 1000);
-        } else {
-            clearInterval(pollInterval.current);
-        }
-        return () => clearInterval(pollInterval.current);
-    }, [isPlaying, isReady, isYoutube, showVideo]);
-
-    // ── Socket Sync ──────────────────────────────────────
-    useEffect(() => {
-        if (!socket || !isReady) return;
-
-        const handleUpdate = (data) => {
-            try {
-                if (isYoutube && showVideo && ytRef.current) {
-                    const p = ytRef.current;
-                    if (data.action === 'play')  { p.playVideo(); setIsPlaying(true); }
-                    if (data.action === 'pause') { p.pauseVideo(); setIsPlaying(false); }
-                    if (data.action === 'seek')  { p.seekTo(parseFloat(data.value), true); setPlaybackTime(data.value); }
-                } else if (nativeRef.current) {
-                    const p = nativeRef.current;
-                    if (data.action === 'play')  { p.play().catch(()=>{}); setIsPlaying(true); }
-                    if (data.action === 'pause') { p.pause(); setIsPlaying(false); }
-                    if (data.action === 'seek')  { p.currentTime = parseFloat(data.value); setPlaybackTime(data.value); }
-                }
-            } catch (err) {
-                console.warn('Sync failed:', err);
+        const portal = document.getElementById('global-yt-portal-target');
+        if (!portal || !portalAnchorRef.current || !showVideo) {
+            if (portal) {
+                portal.style.opacity = '0';
+                portal.style.visibility = 'hidden';
+                portal.style.pointerEvents = 'none';
+                portal.style.zIndex = '-50';
             }
+            return;
+        }
+
+        const updatePos = () => {
+             if (!portalAnchorRef.current) return;
+             const rect = portalAnchorRef.current.getBoundingClientRect();
+             portal.style.top = `${rect.top}px`;
+             portal.style.left = `${rect.left}px`;
+             portal.style.width = `${rect.width}px`;
+             portal.style.height = `${rect.height}px`;
+             portal.style.opacity = '1';
+             portal.style.visibility = 'visible';
+             portal.style.pointerEvents = 'auto';
+             portal.style.zIndex = '40';
         };
 
-        socket.on('playback_update', handleUpdate);
-        return () => socket.off('playback_update', handleUpdate);
-    }, [socket, isReady, isYoutube, showVideo]);
+        updatePos();
+        window.addEventListener('resize', updatePos);
+        const interval = setInterval(updatePos, 100); 
 
-    // ── Drift Alignment ──────────────────────────────────
-    useEffect(() => {
-        if (!isReady || !isPlaying) return;
-        const player = (isYoutube && showVideo) ? ytRef.current : nativeRef.current;
-        if (!player) return;
-
-        const currentPos = (isYoutube && showVideo) ? player.getCurrentTime() : player.currentTime;
-        const diff = Math.abs(currentPos - playbackTime);
-        
-        if (diff > 3.0) { 
-             console.log('[Sync] Aligning:', diff.toFixed(2));
-             if (isYoutube && showVideo) player.seekTo(playbackTime, true);
-             else player.currentTime = playbackTime;
-        }
-    }, [playbackTime, isReady, isPlaying, isYoutube, showVideo]);
-
-    // ── Volume Sync ──────────────────────────────────────
-    useEffect(() => {
-        if (isYoutube && showVideo && ytRef.current) {
-            const ytVol = normalizeVolume ? Math.min(volume, 80) : volume;
-            ytRef.current.setVolume(ytVol);
-        } else if (nativeRef.current) {
-            nativeRef.current.volume = volume / 100;
-        }
-    }, [volume, normalizeVolume, isYoutube, showVideo, isReady]);
-
-    // ── Handlers: YouTube (IFrame) ───────────────────────
-    const onYtReady = (e) => {
-        ytRef.current = e.target;
-        setIsReady(true);
-        setHasError(false);
-        setYtPlayer(e.target);
-        setDuration(e.target.getDuration());
-        e.target.setVolume(volume);
-        resumeAudio();
-        if (isPlaying) {
-            if (playbackTime > 0) e.target.seekTo(playbackTime, true);
-            e.target.playVideo();
-        }
-    };
-
-    const onYtStateChange = (e) => {
-        const YT = window.YT?.PlayerState;
-        if (!YT) return;
-        if (e.data === YT.ENDED) socket?.emit('playback_control', { room_id: currentSong.room_id, action: 'next' });
-        if (e.data === YT.PLAYING) setIsPlaying(true);
-        if (e.data === YT.PAUSED) setIsPlaying(false);
-    };
-
-    // ── Handlers: Native Player ──────────────────────────
-    const onNativeLoaded = (e) => {
-        setIsReady(true);
-        setHasError(false);
-        setDuration(e.target.duration);
-        resumeAudio(); 
-        if (isPlaying) {
-            e.target.currentTime = playbackTime;
-            e.target.play().catch(()=>{});
-        }
-    };
-
-    const onNativeEnded = () => {
-        socket?.emit('playback_control', { room_id: currentSong.room_id, action: 'next' });
-    };
-
-    // ── Reset ───────────────────────────────────────────
-    useEffect(() => {
-        setIsReady(false);
-        setHasError(false);
-        if (setYtPlayer) setYtPlayer(null);
-    }, [currentSong?.id, showVideo]); // Also reset when toggling video
+        return () => {
+            window.removeEventListener('resize', updatePos);
+            clearInterval(interval);
+            portal.style.opacity = '0';
+            portal.style.visibility = 'hidden';
+            portal.style.pointerEvents = 'none';
+            portal.style.zIndex = '-50';
+        };
+    }, [showVideo, currentSong?.id]);
 
     if (!currentSong) return (
         <div className="flex flex-col items-center justify-center p-20 text-white/10">
@@ -188,14 +91,6 @@ const MusicPlayer = () => {
     const displayTitle = songMeta?.title || currentSong.title;
     const displayArtist = songMeta?.artist || currentSong.artist;
     const displayThumb = songMeta?.thumbnail || currentSong.thumbnail;
-
-    // Resolve source URL
-    let sourceUrl = currentSong.source_id;
-    if (currentSong.source === 'upload') {
-        sourceUrl = `${BASE_URL}/api/uploads/${currentSong.source_id}`;
-    } else if (currentSong.source === 'youtube' && !showVideo) {
-        sourceUrl = `${BASE_URL}/api/yt/stream/${currentSong.source_id}`;
-    }
 
     return (
         <div className="w-full flex flex-col items-center gap-7">
@@ -210,10 +105,13 @@ const MusicPlayer = () => {
                 )}
 
                 <AnimatePresence mode="wait">
-                    {/* ─── NATIVE PLAYER (Audio Mode) ─── */}
+                    {/* ─── NATIVE VIEW (Audio Mode) ─── */}
                     {!showVideo || !isYoutube ? (
                         <motion.div
-                             key="native-view" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                             key="native-view" 
+                             initial={{ opacity: 0, scale: 0.9 }} 
+                             animate={{ opacity: 1, scale: 1 }} 
+                             exit={{ opacity: 0, scale: 0.9 }}
                              className="relative w-64 h-64 md:w-80 md:h-80 rounded-[40px] overflow-hidden border border-white/10 shadow-2xl bg-black group"
                         >
                             <img src={displayThumb || '/placeholder.png'} className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700" alt="" />
@@ -226,24 +124,13 @@ const MusicPlayer = () => {
                                 </div>
                             </div>
 
-                            {/* Actual Media Element (Audio Stream) */}
-                            <video
-                                key={`${currentSong.id}-${showVideo}-${currentSong.source}`}
-                                ref={nativeRef}
-                                src={sourceUrl}
-                                crossOrigin="anonymous"
-                                playsInline
-                                onLoadedMetadata={onNativeLoaded}
-                                onEnded={onNativeEnded}
-                                onPlay={() => setIsPlaying(true)}
-                                onPause={() => setIsPlaying(false)}
-                                onError={(e) => { console.error('Native error:', e); if (sourceUrl) setHasError(true); }}
-                                className="absolute opacity-0 pointer-events-none -z-50"
-                            />
-
                             {/* Watch Video button */}
                             {isYoutube && (
-                                <motion.button onClick={() => setShowVideo(true)} whileHover={{ opacity: 1 }} className="absolute inset-x-0 bottom-0 top-0 bg-black/60 flex flex-col items-center justify-center gap-2 transition-all opacity-0 group-hover:opacity-100 z-20 sm:backdrop-blur-sm">
+                                <motion.button 
+                                    onClick={() => setShowVideo(true)} 
+                                    whileHover={{ opacity: 1 }} 
+                                    className="absolute inset-x-0 bottom-0 top-0 bg-black/60 flex flex-col items-center justify-center gap-2 transition-all opacity-0 group-hover:opacity-100 z-20 sm:backdrop-blur-sm"
+                                >
                                     <Tv2 size={28} className="text-white" />
                                     <span className="text-[11px] font-bold text-white/80">Watch High-Res Video</span>
                                     <p className="text-[9px] text-amber-300 font-bold">(Audio EQ will disable)</p>
@@ -263,14 +150,16 @@ const MusicPlayer = () => {
                             </AnimatePresence>
                         </motion.div>
                     ) : (
-                        /* ─── YOUTUBE IFRAME (Video Mode) ─── */
+                        /* ─── YOUTUBE IFRAME ANCHOR (Video Mode) ─── */
                         <motion.div key="iframe-view" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative">
-                            <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/10" style={{ width: 560, maxWidth: '90vw', aspectRatio: '16/9' }}>
-                                <YouTube videoId={currentSong.source_id} opts={{ playerVars: { autoplay: 1, controls: 1, origin: window.location.origin, playsinline: 1 } }} onReady={onYtReady} onStateChange={onYtStateChange} onError={() => setHasError(true)} className="w-full h-full" iframeClassName="w-full h-full" />
-                                <button onClick={() => setShowVideo(false)} className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-sm z-20 transition-all active:scale-90" title="Switch to Audio EQ Mode"><X size={16} /></button>
+                            <div 
+                                ref={portalAnchorRef}
+                                className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/10 bg-black/40 backdrop-blur-md" 
+                                style={{ width: 560, maxWidth: '90vw', aspectRatio: '16/9' }}
+                            >
+                                <button onClick={() => setShowVideo(false)} className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-sm z-[50] transition-all active:scale-90" title="Switch to Audio EQ Mode"><X size={16} /></button>
                                 
-                                {/* Info toast */}
-                                <div className="absolute top-3 left-3 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-xl border border-white/5 pointer-events-none">
+                                <div className="absolute top-3 left-3 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-xl border border-white/5 pointer-events-none z-[50]">
                                     <p className="text-[10px] font-bold text-gray-400">HD Video Mode (No EQ)</p>
                                 </div>
                             </div>
@@ -280,12 +169,12 @@ const MusicPlayer = () => {
 
                 {/* Error State */}
                 <AnimatePresence>
-                    {hasError && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-center p-4 rounded-[40px] z-50">
+                    {playbackError && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-center p-4 rounded-[40px] z-[60]">
                             <WifiOff className="text-red-500 mb-3" size={40} />
                             <h3 className="text-white font-bold">Playback Restricted</h3>
-                            <p className="text-xs text-gray-400 mt-1">YouTube blocked this stream proxy.<br/>Switching to Video Mode might work.</p>
-                            <button onClick={() => setShowVideo(true)} className="mt-4 px-6 py-2 bg-white text-black text-xs font-black rounded-xl">Switch to Video</button>
+                            <p className="text-xs text-gray-400 mt-1 px-4 leading-relaxed">YouTube blocked this stream proxy.<br/>Try switching to Video Mode.</p>
+                            <button onClick={() => setShowVideo(true)} className="mt-4 px-8 py-3 bg-red-600 hover:bg-red-500 text-white text-[11px] font-black rounded-xl uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-red-500/20">Switch to Video</button>
                         </motion.div>
                     )}
                 </AnimatePresence>

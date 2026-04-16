@@ -27,6 +27,8 @@ export const RoomProvider = ({ children }) => {
     const [crossfadeDuration, setCrossfadeDuration] = useState(3); // seconds
     const [normalizeVolume, setNormalizeVolume] = useState(false);
     const [eqBands, setEqBands] = useState([0, 0, 0, 0, 0]); // 60,250,1k,4k,16k Hz
+    const [showVideo, setShowVideo] = useState(false);
+    const [playbackError, setPlaybackError] = useState(false);
 
     const socket = useSocket();
 
@@ -158,6 +160,8 @@ export const RoomProvider = ({ children }) => {
             removeSong, reorderSong, isPro, setIsPro,
             ytPlayer, setYtPlayer,
             resumeAudio,
+            showVideo, setShowVideo,
+            playbackError, setPlaybackError
         }}>
             {children}
         </RoomContext.Provider>
