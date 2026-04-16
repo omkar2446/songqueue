@@ -61,14 +61,14 @@ class Room(db.Model):
     id = db.Column(db.String(36), primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     owner_id = db.Column(db.String(36), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     current_song_id = db.Column(db.String(36), nullable=True)
     is_playing = db.Column(db.Boolean, default=False)
     playback_time = db.Column(db.Float, default=0.0)
     repeat_mode = db.Column(db.Boolean, default=False)
     repeat_type = db.Column(db.Integer, default=0) # 0: none, 1: all, 2: one
     shuffle_mode = db.Column(db.Boolean, default=False)
-    last_updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    last_updated_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class User(db.Model):
     id = db.Column(db.String(36), primary_key=True)
@@ -85,7 +85,7 @@ class Playlist(db.Model):
     id = db.Column(db.String(36), primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.String(36), db.ForeignKey('user.id'))
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class PlaylistSong(db.Model):
     id = db.Column(db.String(36), primary_key=True)
@@ -96,7 +96,7 @@ class PlaylistSong(db.Model):
     source = db.Column(db.String(20))
     source_id = db.Column(db.String(255))
     thumbnail = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class Song(db.Model):
     id = db.Column(db.String(36), primary_key=True)
@@ -110,7 +110,7 @@ class Song(db.Model):
     room_id = db.Column(db.String(36), db.ForeignKey('room.id'))
     votes = db.Column(db.Integer, default=0)
     position = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 with app.app_context():
     db.create_all()
@@ -118,8 +118,8 @@ with app.app_context():
 # 6. ── Auth Helpers ──
 def create_token(user_id):
     payload = {
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=7),
-        'iat': datetime.datetime.utcnow(),
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7),
+        'iat': datetime.datetime.now(datetime.timezone.utc),
         'sub': user_id
     }
     return jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
@@ -143,7 +143,7 @@ def health_check():
         "status": "online",
         "service": "SongQueue API",
         "runtime": "threading",
-        "timestamp": datetime.datetime.utcnow().isoformat()
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     })
 
 @app.route('/api/uploads/<path:filename>')
@@ -321,7 +321,9 @@ def get_room_state(room_id):
 
     calc_time = room.playback_time
     if room.is_playing and room.last_updated_at:
-        elapsed = (datetime.datetime.now(datetime.UTC).replace(tzinfo=None) - room.last_updated_at.replace(tzinfo=None)).total_seconds()
+        now_utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        last_upd = room.last_updated_at.replace(tzinfo=None)
+        elapsed = (now_utc - last_upd).total_seconds()
         calc_time += elapsed
 
     return jsonify({'id': room.id, 'name': room.name, 'current_song_id': room.current_song_id, 'is_playing': room.is_playing, 'playback_time': calc_time, 'repeat_type': room.repeat_type, 'shuffle_mode': room.shuffle_mode, 'queue': queue})
@@ -380,8 +382,11 @@ def handle_playback(data):
     if not room: return
 
     if room.is_playing and room.last_updated_at:
-        room.playback_time += (datetime.datetime.now(datetime.UTC).replace(tzinfo=None) - room.last_updated_at.replace(tzinfo=None)).total_seconds()
-    room.last_updated_at = datetime.datetime.now(datetime.UTC)
+        now_utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        last_upd = room.last_updated_at.replace(tzinfo=None)
+        room.playback_time += (now_utc - last_upd).total_seconds()
+    
+    room.last_updated_at = datetime.datetime.now(datetime.timezone.utc)
 
     if curr_action == 'play': room.is_playing = True
     elif curr_action == 'pause': room.is_playing = False
