@@ -291,41 +291,50 @@ def update_pro(user_id):
 
 @app.route('/api/auth/join', methods=['POST'])
 def join_session():
-    data = request.json
-    name = data.get('name')
-    email = data.get('email', f"anon_{uuid.uuid4().hex[:6]}@example.com")
-    room_id = data.get('room_id', '').strip() or None
+    try:
+        data = request.json
+        name = data.get('name', 'Anonymous')
+        email = data.get('email', f"anon_{uuid.uuid4().hex[:6]}@example.com")
+        room_id = data.get('room_id')
+        if room_id:
+            room_id = room_id.strip()
+        if not room_id:
+            room_id = None
 
-    # Try to find user by email or create a placeholder
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        user_id = str(uuid.uuid4())
-        user = User(id=user_id, name=name, email=email)
-        # Auto-grant PRO to owner
-        if email == PRO_OWNER_EMAIL:
-            user.is_pro = True
-        db.session.add(user)
-    else:
-        user_id = user.id
+        # Try to find user by email or create a placeholder
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            user_id = str(uuid.uuid4())
+            user = User(id=user_id, name=name, email=email)
+            # Auto-grant PRO to owner
+            if email == PRO_OWNER_EMAIL:
+                user.is_pro = True
+            db.session.add(user)
+        else:
+            user_id = user.id
 
-    if not room_id:
-        room_id = str(uuid.uuid4())[:8]
-        new_room = Room(id=room_id, name=f"{name}'s Room", owner_id=user_id)
-        user.room_id = room_id
-        user.is_admin = True
-        db.session.add(new_room)
-    else:
-        room = Room.query.get(room_id)
-        if not room: return jsonify({'error': 'Room not found'}), 404
-        user.room_id = room_id
+        if not room_id:
+            room_id = str(uuid.uuid4())[:8]
+            new_room = Room(id=room_id, name=f"{name}'s Room", owner_id=user_id)
+            user.room_id = room_id
+            user.is_admin = True
+            db.session.add(new_room)
+        else:
+            room = Room.query.get(room_id)
+            if not room: return jsonify({'error': 'Room not found'}), 404
+            user.room_id = room_id
 
-    db.session.commit()
-    token = create_token(user_id)
-    return jsonify({
-        'token': token,
-        'user': {'id': user_id, 'name': user.name, 'is_admin': user.is_admin, 'is_pro': user.is_pro},
-        'room_id': room_id
-    })
+        db.session.commit()
+        token = create_token(user_id)
+        return jsonify({
+            'token': token,
+            'user': {'id': user_id, 'name': user.name, 'is_admin': user.is_admin, 'is_pro': user.is_pro},
+            'room_id': room_id
+        })
+    except Exception as e:
+        logger.error(f"Join error: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/room/<room_id>', methods=['GET'])
 def get_room_state(room_id):
