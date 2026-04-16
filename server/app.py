@@ -80,25 +80,24 @@ with app.app_context():
             db.session.execute(text('SELECT 1'))
             connected = True
             
-            print("\n" + "╔" + "═"*58 + "╗")
+            print("\n" + "!"*60)
             if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI']:
-                print(f"║ DATABASE:  SUCCESS (PostgreSQL - PERMANENT STORAGE)        ║")
+                print(f"DATABASE:  SUCCESS (PostgreSQL - PERMANENT STORAGE)")
             else:
-                print(f"║ DATABASE:  WARNING (SQLite - VOLATILE/TEMPORARY)          ║")
-            print("╚" + "═"*58 + "╝\n")
+                print(f"DATABASE:  WARNING (SQLite - VOLATILE/TEMPORARY)")
+            print("!"*60 + "\n")
             
         except Exception as e:
             retry_count += 1
-            print(f"║ DB CONNECTION RETRY {retry_count}/{max_retries}: {str(e)[:40]}...")
+            print(f"DB CONNECTION RETRY {retry_count}/{max_retries}: {str(e)[:40]}...")
             if retry_count >= max_retries:
-                print("║ CRITICAL: Database connection failed after retries.       ║")
+                print("CRITICAL: Database connection failed after retries.")
             import time
             time.sleep(2)
 
     # ── Live Migration Helper ──
     try:
         with db.engine.connect() as conn:
-            # Check and add columns if missing (Prevents 500 errors after updates)
             for stmt in [
                 "ALTER TABLE \"user\" ADD COLUMN is_pro BOOLEAN DEFAULT FALSE",
                 "ALTER TABLE room ADD COLUMN current_song_id VARCHAR(36)",
@@ -115,8 +114,11 @@ with app.app_context():
                 try: 
                     conn.execute(text(stmt))
                     conn.commit()
-                except: pass 
-    except: pass
+                except Exception as ex:
+                    # Silently ignore 'column already exists'
+                    pass 
+    except Exception as e:
+        print(f"MIGRATION ERROR: {str(e)}")
 class Room(db.Model):
     id = db.Column(db.String(36), primary_key=True)
     name = db.Column(db.String(100), nullable=False)
