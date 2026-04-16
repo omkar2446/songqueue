@@ -10,9 +10,15 @@ import PlaylistSelectorModal from './PlaylistSelectorModal';
 
 /* ── URL parsers (no API key needed) ─────────────────────────── */
 const parseYouTube = (url) => {
+    // 1. Check for standard YouTube URLs
     const re = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/;
     const m = url.match(re);
-    return m ? m[1] : null;
+    if (m) return m[1];
+
+    // 2. Check for raw 11-character IDs
+    if (/^[\w-]{11}$/.test(url.trim())) return url.trim();
+
+    return null;
 };
 
 const parseSpotify = (url) => {
@@ -136,14 +142,40 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
         if (tab === 'youtube') {
             const id = parseYouTube(val);
             if (id) {
+                // Show a loading preview immediately
                 setPreview({
                     source: 'youtube',
                     source_id: id,
-                    title: 'YouTube Video',
-                    artist: 'Pasted Link',
+                    title: 'Loading...',
+                    artist: 'YouTube',
                     thumbnail: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
                 });
-                setStatus('ok');
+                setStatus('loading');
+
+                // Fetch real metadata via oEmbed (free, no API key needed)
+                fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`)
+                    .then(r => r.json())
+                    .then(data => {
+                        setPreview({
+                            source: 'youtube',
+                            source_id: id,
+                            title: data.title || 'YouTube Video',
+                            artist: data.author_name || 'YouTube',
+                            thumbnail: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
+                            duration: 0,
+                        });
+                        setStatus('ok');
+                    })
+                    .catch(() => {
+                        setPreview({
+                            source: 'youtube',
+                            source_id: id,
+                            title: 'YouTube Video',
+                            artist: 'YouTube',
+                            thumbnail: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
+                        });
+                        setStatus('ok');
+                    });
             } else {
                 setStatus('error');
                 setErrMsg('Not a valid YouTube URL. Try a link like: youtube.com/watch?v=...');

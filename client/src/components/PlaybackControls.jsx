@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoom } from '../context/RoomContext';
 import { useSocket } from '../context/SocketContext';
@@ -111,9 +111,12 @@ const PlaybackControls = ({ onOpenEQ }) => {
         shuffleMode, setShuffleMode,
         crossfadeDuration, setCrossfadeDuration,
         normalizeVolume, setNormalizeVolume,
+        eqBands,
         hasInteracted, setHasInteracted,
         room, fetchRoomState,
-        isPro, setIsPro
+        isPro, setIsPro,
+        ytPlayer,
+        resumeAudio,
     } = useRoom();
     const socket = useSocket();
 
@@ -131,12 +134,22 @@ const PlaybackControls = ({ onOpenEQ }) => {
         setHasInteracted(true);
         const next = !isPlaying;
         setIsPlaying(next);
+        // Resume AudioContext inside user gesture (required by browser autoplay policy)
+        resumeAudio();
+        // Call YouTube player DIRECTLY in user gesture context
+        try {
+            if (ytPlayer) {
+                if (next) ytPlayer.playVideo();
+                else       ytPlayer.pauseVideo();
+            }
+        } catch (_) {}
         emit(next ? 'play' : 'pause');
     };
 
     const handleSeek = (t) => {
         setHasInteracted(true);
         setPlaybackTime(t);
+        try { if (ytPlayer) ytPlayer.seekTo(t, true); } catch (_) {}
         emit('seek', t);
     };
 
@@ -149,10 +162,8 @@ const PlaybackControls = ({ onOpenEQ }) => {
         setHasInteracted(true);
         const now = Date.now();
         if (now - lastPrevTap.current < 400) {
-            // Double-tap → restart
             handleSeek(0);
         } else if (playbackTime > 3) {
-            // Single tap while song playing > 3s → restart
             handleSeek(0);
         } else {
             emit('prev');
@@ -179,6 +190,10 @@ const PlaybackControls = ({ onOpenEQ }) => {
     const toggleMute = () => handleVolume(volume === 0 ? prevVol : 0);
 
     const togglePro = async () => {
+        if (user?.email !== 'otambe655@gmail.com') {
+            alert("PRO Mode is restricted to authorized accounts.");
+            return;
+        }
         const next = !isPro;
         setIsPro(next);
         
@@ -377,9 +392,17 @@ const PlaybackControls = ({ onOpenEQ }) => {
                 {/* PRO Toggle */}
                 <button
                     onClick={togglePro}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isPro ? 'bg-amber-500/20 text-amber-400 border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]' : 'text-gray-600 hover:text-white hover:bg-white/5'}`}
+                    disabled={user?.email !== 'otambe655@gmail.com'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        user?.email !== 'otambe655@gmail.com' 
+                            ? 'opacity-30 cursor-not-allowed text-gray-700'
+                            : isPro 
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]' 
+                                : 'text-gray-600 hover:text-white hover:bg-white/5'
+                    }`}
                 >
-                    <Zap size={12} className={isPro ? "fill-amber-400" : ""} /> {isPro ? 'PRO ACTIVE' : 'GO PRO'}
+                    {user?.email === 'otambe655@gmail.com' ? <Zap size={12} className={isPro ? "fill-amber-400" : ""} /> : "🔒"} 
+                    {user?.email === 'otambe655@gmail.com' ? (isPro ? 'PRO ACTIVE' : 'GO PRO') : 'PRO Restricted'}
                 </button>
             </div>
         </div>

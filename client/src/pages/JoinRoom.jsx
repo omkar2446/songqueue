@@ -144,6 +144,19 @@ const JoinRoom = () => {
                                             </div>
                                         </div>
 
+                                        <div className="space-y-2">
+                                            <label className="block text-[10px] uppercase tracking-widest font-black text-gray-500 ml-1">Email (Optional - To Save Playlists)</label>
+                                            <div className="relative group">
+                                                <input 
+                                                    type="email"
+                                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-blue-500/50 focus:bg-blue-500/5 transition-all outline-none"
+                                                    placeholder="Enter email to persist library"
+                                                    value={formData.email}
+                                                    onChange={e => setFormData({...formData, email: e.target.value})}
+                                                />
+                                            </div>
+                                        </div>
+
                                         <AnimatePresence mode="wait">
                                             {mode === 'join' && (
                                                 <motion.div

@@ -15,11 +15,14 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 
-# Configure Logging
+# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+# ── PRO account (only this user gets GO PRO access) ──
+PRO_OWNER_EMAIL = 'otambe655@gmail.com'
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey-change-this')
@@ -42,6 +45,10 @@ def health_check():
         "service": "SongQueue API",
         "timestamp": datetime.datetime.utcnow().isoformat()
     })
+
+# Ensure tables exist
+with app.app_context():
+    db.create_all()
 
 # --- Models ---
 class Room(db.Model):
@@ -259,6 +266,11 @@ def login():
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({'error': 'Invalid email or password'}), 401
     
+    # Auto-grant PRO to the owner account on every login
+    if user.email == PRO_OWNER_EMAIL and not user.is_pro:
+        user.is_pro = True
+        db.session.commit()
+
     token = create_token(user.id)
     return jsonify({
         'token': token,
@@ -268,26 +280,30 @@ def login():
 @app.route('/api/auth/update_pro', methods=['POST'])
 @token_required
 def update_pro(user_id):
+    user = User.query.get(user_id)
+    if not user or user.email != PRO_OWNER_EMAIL:
+        return jsonify({'error': 'PRO access is restricted to authorized accounts.'}), 403
     data = request.json
     is_pro = data.get('is_pro', False)
-    user = User.query.get(user_id)
-    if user:
-        user.is_pro = is_pro
-        db.session.commit()
-    return jsonify({'success': True, 'is_pro': user.is_pro if user else False})
+    user.is_pro = is_pro
+    db.session.commit()
+    return jsonify({'success': True, 'is_pro': user.is_pro})
 
 @app.route('/api/auth/join', methods=['POST'])
 def join_session():
     data = request.json
     name = data.get('name')
     email = data.get('email', f"anon_{uuid.uuid4().hex[:6]}@example.com")
-    room_id = data.get('room_id')
+    room_id = data.get('room_id', '').strip() or None
 
     # Try to find user by email or create a placeholder
     user = User.query.filter_by(email=email).first()
     if not user:
         user_id = str(uuid.uuid4())
         user = User(id=user_id, name=name, email=email)
+        # Auto-grant PRO to owner
+        if email == PRO_OWNER_EMAIL:
+            user.is_pro = True
         db.session.add(user)
     else:
         user_id = user.id
@@ -313,6 +329,7 @@ def join_session():
 
 @app.route('/api/room/<room_id>', methods=['GET'])
 def get_room_state(room_id):
+    room_id = room_id.strip()
     room = Room.query.get(room_id)
     if not room:
         return jsonify({'error': 'Room not found'}), 404
@@ -677,6 +694,11 @@ def search_youtube():
 
 @app.route('/api/room/<room_id>/add', methods=['POST'])
 def add_song(room_id):
+    room_id = room_id.strip()
+    room = Room.query.get(room_id)
+    if not room:
+        return jsonify({'error': 'Room not found'}), 404
+
     data = request.json
     user_name = data.get('added_by', 'Anonymous')
     
@@ -706,11 +728,7 @@ def add_song(room_id):
     return jsonify({'message': 'Song added to queue'})
 
 
-# --- WebSocket Events ---
-active_users = {} # room_id -> [user_data]
-
-
-
+# --- Server Environment ---
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"Starting server on port {port}...")

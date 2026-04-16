@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
 import { useSocket } from './SocketContext';
+import { useAudioEngine } from '../hooks/useAudioEngine';
 
 const RoomContext = createContext();
 export const useRoom = () => useContext(RoomContext);
@@ -18,6 +19,7 @@ export const RoomProvider = ({ children }) => {
     const [volume, setVolume] = useState(100);
     const [playbackRate, setPlaybackRate] = useState(1);
     const [isPro, setIsPro] = useState(user?.is_pro || false);
+    const [ytPlayer, setYtPlayer] = useState(null); // Direct YouTube player instance
 
     // Advanced playback states
     const [repeatMode, setRepeatMode] = useState(0);      // 0=off 1=all 2=one
@@ -27,6 +29,10 @@ export const RoomProvider = ({ children }) => {
     const [eqBands, setEqBands] = useState([0, 0, 0, 0, 0]); // 60,250,1k,4k,16k Hz
 
     const socket = useSocket();
+
+    // ── Single audio engine instance for the whole app ──
+    const { resume: _resumeAudio } = useAudioEngine(eqBands, volume, normalizeVolume);
+    const resumeAudio = (extraArgs) => _resumeAudio({ eqBands, volume, normalize: normalizeVolume, ...extraArgs });
 
     const fetchRoomState = async (roomId) => {
         try {
@@ -149,7 +155,9 @@ export const RoomProvider = ({ children }) => {
             hasInteracted, setHasInteracted,
             joinRoom, setRoom, fetchRoomState, logout,
             setIsPlaying, setPlaybackTime, setDuration,
-            removeSong, reorderSong, isPro, setIsPro
+            removeSong, reorderSong, isPro, setIsPro,
+            ytPlayer, setYtPlayer,
+            resumeAudio,
         }}>
             {children}
         </RoomContext.Provider>
