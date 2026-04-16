@@ -114,6 +114,23 @@ class Song(db.Model):
 
 with app.app_context():
     db.create_all()
+    # Live Migration Helper (fixes 500 errors on existing Render DBs)
+    from sqlalchemy import text
+    with db.engine.connect() as conn:
+        for stmt in [
+            "ALTER TABLE user ADD COLUMN is_pro BOOLEAN DEFAULT 0",
+            "ALTER TABLE user ADD COLUMN password_hash VARCHAR(255)",
+            "ALTER TABLE room ADD COLUMN last_updated_at DATETIME",
+            "ALTER TABLE room ADD COLUMN repeat_type INTEGER DEFAULT 0",
+            "ALTER TABLE room ADD COLUMN shuffle_mode BOOLEAN DEFAULT 0",
+            "ALTER TABLE song ADD COLUMN position INTEGER DEFAULT 0",
+            "ALTER TABLE song ADD COLUMN votes INTEGER DEFAULT 0"
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+                logger.info(f"Migration Success: {stmt}")
+            except Exception: pass 
 
 # 6. ── Auth Helpers ──
 def create_token(user_id):
