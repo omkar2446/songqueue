@@ -319,7 +319,11 @@ def join_session():
         data = request.json
         name = data.get('name', 'Anonymous')
         email = data.get('email', f"anon_{uuid.uuid4().hex[:6]}@example.com")
-        room_id = data.get('room_id', '').strip() or None
+        room_id = data.get('room_id')
+        if room_id:
+            room_id = str(room_id).strip()
+        if not room_id:
+            room_id = None
 
         user = User.query.filter_by(email=email).first()
         if not user:
