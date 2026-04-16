@@ -119,12 +119,15 @@ with app.app_context():
     with db.engine.connect() as conn:
         for stmt in [
             "ALTER TABLE user ADD COLUMN is_pro BOOLEAN DEFAULT 0",
+            "ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0",
+            "ALTER TABLE user ADD COLUMN room_id VARCHAR(36)",
             "ALTER TABLE user ADD COLUMN password_hash VARCHAR(255)",
             "ALTER TABLE room ADD COLUMN last_updated_at DATETIME",
             "ALTER TABLE room ADD COLUMN repeat_type INTEGER DEFAULT 0",
             "ALTER TABLE room ADD COLUMN shuffle_mode BOOLEAN DEFAULT 0",
             "ALTER TABLE song ADD COLUMN position INTEGER DEFAULT 0",
-            "ALTER TABLE song ADD COLUMN votes INTEGER DEFAULT 0"
+            "ALTER TABLE song ADD COLUMN votes INTEGER DEFAULT 0",
+            "ALTER TABLE song ADD COLUMN added_by_name VARCHAR(100)"
         ]:
             try:
                 conn.execute(text(stmt))
