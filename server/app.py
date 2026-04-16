@@ -210,6 +210,11 @@ def stream_yt(video_id):
             logger.error(f"YouTube Extract Error: {str(e)}")
             return jsonify({'error': 'Failed to resolve YouTube audio'}), 500
 
+    headers = {}
+    if 'Range' in request.headers:
+        headers['Range'] = request.headers['Range']
+
+    try:
         # Use HEAD if request is HEAD
         if request.method == 'HEAD':
             r = requests.head(cached_url, headers=headers, timeout=10)
