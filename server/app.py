@@ -57,18 +57,63 @@ if not os.path.exists(app.instance_path): os.makedirs(app.instance_path)
 
 db = SQLAlchemy(app)
 
-# 4. ── SocketIO Setup (USING THREADING MODE FOR STABILITY) ──
-# Threading mode is most compatible with standard Python libraries and avoids monkey patching.
+# 4. ── SocketIO Setup ──
 socketio = SocketIO(
     app, 
     cors_allowed_origins="*", 
-    async_mode='threading', 
+    async_mode='threading',
     logger=True, 
     engineio_logger=True
 )
 CORS(app)
 
-# 5. ── Models ──
+# ── Database Initialization with Resilience ──
+with app.app_context():
+    retry_count = 0
+    max_retries = 3
+    connected = False
+    
+    while not connected and retry_count < max_retries:
+        try:
+            db.create_all()
+            # Verify connectivity
+            db.session.execute(text('SELECT 1'))
+            connected = True
+            
+            print("\n" + "╔" + "═"*58 + "╗")
+            if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI']:
+                print(f"║ DATABASE:  SUCCESS (PostgreSQL - PERMANENT STORAGE)        ║")
+            else:
+                print(f"║ DATABASE:  WARNING (SQLite - VOLATILE/TEMPORARY)          ║")
+            print("╚" + "═"*58 + "╝\n")
+            
+        except Exception as e:
+            retry_count += 1
+            print(f"║ DB CONNECTION RETRY {retry_count}/{max_retries}: {str(e)[:40]}...")
+            if retry_count >= max_retries:
+                print("║ CRITICAL: Database connection failed after retries.       ║")
+            import time
+            time.sleep(2)
+
+    # ── Live Migration Helper ──
+    try:
+        with db.engine.connect() as conn:
+            # Check and add columns if missing (Prevents 500 errors after updates)
+            for stmt in [
+                "ALTER TABLE \"user\" ADD COLUMN is_pro BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE room ADD COLUMN current_song_id VARCHAR(36)",
+                "ALTER TABLE room ADD COLUMN is_playing BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE room ADD COLUMN playback_time FLOAT DEFAULT 0",
+                "ALTER TABLE room ADD COLUMN repeat_type INTEGER DEFAULT 0",
+                "ALTER TABLE room ADD COLUMN shuffle_mode BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE room ADD COLUMN created_at DATETIME",
+                "ALTER TABLE room ADD COLUMN expires_at DATETIME"
+            ]:
+                try: 
+                    conn.execute(text(stmt))
+                    conn.commit()
+                except: pass 
+    except: pass
 class Room(db.Model):
     id = db.Column(db.String(36), primary_key=True)
     name = db.Column(db.String(100), nullable=False)

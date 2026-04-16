@@ -90,6 +90,11 @@ export const RoomProvider = ({ children }) => {
                     setCurrentSong(data.current_song);
                     setPlaybackTime(0);
                     if (hasInteracted) setIsPlaying(true);
+                    
+                    // PRO OPTIMIZATION: Default to high-fidelity Audio EQ mode if PRO
+                    if (isPro && data.current_song?.source === 'youtube') {
+                        setShowVideo(false);
+                    }
                 } else if (data.current_song_id !== undefined) {
                     fetchRoomState(room.id);
                 }

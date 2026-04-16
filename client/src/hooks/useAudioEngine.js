@@ -181,9 +181,7 @@ export function useAudioEngine(eqBands, volume, normalizeVolume) {
 
         // Scan now + with delays to catch lazy-loaded YouTube elements
         scan();
-        setTimeout(scan, 300);
-        setTimeout(scan, 1000);
-        setTimeout(scan, 2500);
+        [200, 500, 1200, 2500, 5000].forEach(ms => setTimeout(scan, ms));
     }, []);
 
     return { resume };
