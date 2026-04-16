@@ -74,15 +74,28 @@ export function buildGraph(eqBands, volume, normalize) {
 
 function tryConnect(el) {
     if (!el || _seenElements.has(el) || !_graphReady) return;
-    _seenElements.add(el);
+    
+    // Add event listeners for future source changes
+    if (!el._eqListenersAttached) {
+        el._eqListenersAttached = true;
+        el.addEventListener('loadstart', () => {
+            // Re-scan if source changes, though createMediaElementSource 
+            // usually stays valid for the hijacked element.
+            if (_graphReady) scan();
+        });
+    }
+
     try {
         const ctx = getCtx();
         const src = ctx.createMediaElementSource(el);
         src.connect(_filters[0]);
+        _seenElements.add(el);
         console.log('[AudioEngine] Connected:', el.tagName, el.src?.slice(0, 80) || '(no src)');
     } catch (err) {
-        if (!err.message?.includes('already')) {
-            console.warn('[AudioEngine] Could not connect element:', err.message);
+        if (err.message?.includes('already')) {
+            _seenElements.add(el);
+        } else {
+            console.warn('[AudioEngine] Connection error:', err.message);
         }
     }
 }

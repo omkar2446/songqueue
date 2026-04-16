@@ -176,8 +176,15 @@ def serve_upload(filename):
 # In-memory cache for YouTube URLs to speed up seeking and range requests
 yt_url_cache = {} # video_id -> (url, expires_at)
 
-@app.route('/api/yt/stream/<video_id>')
+@app.route('/api/yt/stream/<video_id>', methods=['GET', 'HEAD', 'OPTIONS'])
 def stream_yt(video_id):
+    if request.method == 'OPTIONS':
+        resp = Response()
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Range, Content-Type, Authorization'
+        return resp
+
     now = datetime.datetime.now(datetime.timezone.utc)
     
     cached_url = None
@@ -203,10 +210,15 @@ def stream_yt(video_id):
             logger.error(f"YouTube Extract Error: {str(e)}")
             return jsonify({'error': 'Failed to resolve YouTube audio'}), 500
 
-    try:
-        headers = {}
-        if 'Range' in request.headers:
-            headers['Range'] = request.headers['Range']
+        # Use HEAD if request is HEAD
+        if request.method == 'HEAD':
+            r = requests.head(cached_url, headers=headers, timeout=10)
+            resp = Response(status=r.status_code)
+            for k, v in r.headers.items():
+                if k.lower() in ['content-type', 'content-length', 'accept-ranges', 'content-range']:
+                    resp.headers[k] = v
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            return resp
 
         r = requests.get(cached_url, headers=headers, stream=True, timeout=10)
         
