@@ -124,8 +124,31 @@ const Playlists = () => {
                 ...song,
                 added_by: user.name
             });
-            // Show some success feedback
-        } catch (err) { console.error(err); }
+            // feedback could be added here
+        } catch (err) { 
+            console.error(err);
+            alert("Failed to add song to room");
+        }
+    };
+
+    const playPlaylist = async () => {
+        if (!room) {
+            alert('Join a room first to play songs!');
+            return;
+        }
+        if (!detail?.songs?.length) return;
+        
+        try {
+            await api.post(`/room/${room.id}/add-bulk`, {
+                songs: detail.songs,
+                added_by: user.name
+            });
+            // Optional: navigate to the room
+            // navigate(`/room/${room.id}`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to add playlist to room");
+        }
     };
 
     const handleAddSong = async (song) => {
@@ -266,11 +289,7 @@ const Playlists = () => {
 
                                 <div className="flex items-center gap-4">
                                     <button 
-                                        onClick={() => {
-                                            if (detail?.songs?.length > 0) {
-                                                detail.songs.forEach(s => addToRoom(s));
-                                            }
-                                        }}
+                                        onClick={playPlaylist}
                                         className="w-14 h-14 bg-violet-500 hover:bg-violet-400 text-white rounded-full flex items-center justify-center shadow-lg shadow-violet-500/20 hover:scale-110 active:scale-95 transition-all"
                                     >
                                         <Play size={24} fill="white" className="ml-1" />

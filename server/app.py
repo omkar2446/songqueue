@@ -414,6 +414,115 @@ def upload_file(room_id):
         return jsonify({'message': 'Uploaded', 'song': { 'id': song.id, 'title': song.title, 'source': 'upload' }})
     return jsonify({'error': 'Invalid file type'}), 400
 
+@app.route('/api/room/<room_id>/add', methods=['POST'])
+def add_to_room_api(room_id):
+    data = request.json
+    room = Room.query.get(room_id)
+    if not room: return jsonify({'error': 'Room not found'}), 404
+
+    last_song = Song.query.filter_by(room_id=room_id).order_by(Song.position.desc()).first()
+    pos = (last_song.position + 1) if last_song else 0
+
+    new_song = Song(
+        id=str(uuid.uuid4()),
+        room_id=room_id,
+        title=data['title'],
+        artist=data.get('artist', 'Unknown'),
+        duration=data.get('duration', 0),
+        source=data['source'],
+        source_id=data['source_id'],
+        thumbnail=data.get('thumbnail', ''),
+        added_by_name=data.get('added_by', 'Anonymous'),
+        position=pos
+    )
+    db.session.add(new_song)
+    
+    if not room.current_song_id:
+        room.current_song_id, room.is_playing = new_song.id, True
+        room.playback_time = 0
+        room.last_updated_at = datetime.datetime.now(datetime.timezone.utc)
+
+    db.session.commit()
+    socketio.emit('queue_updated', {'room_id': room_id}, room=room_id)
+    socketio.emit('room_state_update', {'current_song_id': room.current_song_id}, room=room_id)
+    return jsonify({'success': True, 'song_id': new_song.id})
+
+@app.route('/api/room/<room_id>/add-bulk', methods=['POST'])
+def add_bulk_to_room(room_id):
+    data = request.json
+    songs_data = data.get('songs', [])
+    room = Room.query.get(room_id)
+    if not room: return jsonify({'error': 'Room not found'}), 404
+
+    last_song = Song.query.filter_by(room_id=room_id).order_by(Song.position.desc()).first()
+    pos = (last_song.position + 1) if last_song else 0
+
+    new_songs = []
+    for s in songs_data:
+        ns = Song(
+            id=str(uuid.uuid4()),
+            room_id=room_id,
+            title=s['title'],
+            artist=s.get('artist', 'Unknown'),
+            duration=s.get('duration', 0),
+            source=s['source'],
+            source_id=s['source_id'],
+            thumbnail=s.get('thumbnail', ''),
+            added_by_name=data.get('added_by', 'Anonymous'),
+            position=pos
+        )
+        db.session.add(ns)
+        new_songs.append(ns)
+        pos += 1
+    
+    if not room.current_song_id and new_songs:
+        room.current_song_id, room.is_playing = new_songs[0].id, True
+        room.playback_time = 0
+        room.last_updated_at = datetime.datetime.now(datetime.timezone.utc)
+
+    db.session.commit()
+    socketio.emit('queue_updated', {'room_id': room_id}, room=room_id)
+    socketio.emit('room_state_update', {'current_song_id': room.current_song_id}, room=room_id)
+    return jsonify({'success': True, 'count': len(new_songs)})
+
+@app.route('/api/room/<room_id>/queue/<song_id>', methods=['DELETE'])
+def remove_from_room_queue(room_id, song_id):
+    song = Song.query.filter_by(id=song_id, room_id=room_id).first()
+    if not song: return jsonify({'error': 'Song not found'}), 404
+
+    db.session.delete(song)
+    room = Room.query.get(room_id)
+    if room and room.current_song_id == song_id:
+        # Move to next song
+        next_song = Song.query.filter_by(room_id=room_id).order_by(Song.position.asc()).first()
+        room.current_song_id = next_song.id if next_song else None
+        room.playback_time = 0
+        room.is_playing = bool(next_song)
+    
+    db.session.commit()
+    socketio.emit('queue_updated', {'room_id': room_id}, room=room_id)
+    socketio.emit('room_state_update', {'current_song_id': room.current_song_id}, room=room_id)
+    return jsonify({'success': True})
+
+@app.route('/api/room/<room_id>/reorder', methods=['POST'])
+def reorder_room_queue(room_id):
+    data = request.json
+    song_id, direction = data.get('song_id'), data.get('direction')
+    song = Song.query.filter_by(id=song_id, room_id=room_id).first()
+    if not song: return jsonify({'error': 'Song not found'}), 404
+
+    songs = Song.query.filter_by(room_id=room_id).order_by(Song.position.asc()).all()
+    idx = next((i for i, s in enumerate(songs) if s.id == song_id), -1)
+    
+    if direction == 'up' and idx > 0:
+        songs[idx].position, songs[idx-1].position = songs[idx-1].position, songs[idx].position
+    elif direction == 'down' and idx < len(songs) - 1:
+        songs[idx].position, songs[idx+1].position = songs[idx+1].position, songs[idx].position
+    
+    db.session.commit()
+    socketio.emit('queue_updated', {'room_id': room_id}, room=room_id)
+    return jsonify({'success': True})
+
 # 11. ── WebSocket Events ──
 active_users = {}
 
