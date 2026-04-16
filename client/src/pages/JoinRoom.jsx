@@ -29,10 +29,24 @@ const JoinRoom = () => {
         e.preventDefault();
         setError('');
         setLoading(true);
+
+        // PERSISTENCE: Check if we have a saved anonymous identity to preserve playlists
+        let usedEmail = formData.email;
+        if (!usedEmail && mode !== 'signup') {
+            const savedAnon = localStorage.getItem('synco_anon_email');
+            if (savedAnon) {
+                usedEmail = savedAnon;
+            } else {
+                const newAnon = `anon_${Math.random().toString(36).slice(2, 8)}@synco.guest`;
+                localStorage.setItem('synco_anon_email', newAnon);
+                usedEmail = newAnon;
+            }
+        }
+
         try {
             const roomId = await joinRoom(
-                formData.name, 
-                formData.email, 
+                formData.name || 'Guest', 
+                usedEmail, 
                 formData.phone, 
                 mode === 'join' ? formData.roomId : null
             );

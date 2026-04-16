@@ -31,18 +31,29 @@ PRO_EMAILS = ['otambe655@gmail.com', 'SOlove1@gmail.com']
 # 3. ── App Initialization ──
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey-change-this')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f"sqlite:///{os.path.join(app.instance_path, 'songqueue.db')}")
+
+# PERSISTENCE FIX: Ensure DB is in a stable location
+db_dir = os.path.join(os.getcwd(), 'data')
+if not os.path.exists(db_dir):
+    os.makedirs(db_dir)
+
+db_path = os.path.join(db_dir, 'songqueue.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f"sqlite:///{db_path}")
+
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
-    # Fix for Render/Heroku postgres URLs
     app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
 
-app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+if not os.getenv('DATABASE_URL'):
+    print("\n" + "!"*60)
+    print("WARNING: Using LOCAL SQLite database. data will be LOST on restart")
+    print("if deployed on platforms like Render without a persistent disk.")
+    print("Solution: Add DATABASE_URL to your environment variables.")
+    print("!"*60 + "\n")
 
-if not os.path.exists(app.instance_path):
-    os.makedirs(app.instance_path)
+app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+if not os.path.exists(app.config['UPLOAD_FOLDER']): os.makedirs(app.config['UPLOAD_FOLDER'])
+if not os.path.exists(app.instance_path): os.makedirs(app.instance_path)
 
 db = SQLAlchemy(app)
 
