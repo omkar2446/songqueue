@@ -172,40 +172,64 @@ def health_check():
 def serve_upload(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+# In-memory cache for YouTube URLs to speed up seeking and range requests
+yt_url_cache = {} # video_id -> (url, expires_at)
+
 @app.route('/api/yt/stream/<video_id>')
 def stream_yt(video_id):
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-    }
+    now = datetime.datetime.now(datetime.timezone.utc)
+    
+    cached_url = None
+    if video_id in yt_url_cache:
+        url, expiry = yt_url_cache[video_id]
+        if now < expiry:
+            cached_url = url
+
+    if not cached_url:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'no_warnings': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                cached_url = info['url']
+                # Cache for 1 hour (YouTube URLs usually last a few hours)
+                yt_url_cache[video_id] = (cached_url, now + datetime.timedelta(hours=1))
+        except Exception as e:
+            logger.error(f"YouTube Extract Error: {str(e)}")
+            return jsonify({'error': 'Failed to resolve YouTube audio'}), 500
+
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-            url = info['url']
-            
-            headers = {}
-            if 'Range' in request.headers:
-                headers['Range'] = request.headers['Range']
+        headers = {}
+        if 'Range' in request.headers:
+            headers['Range'] = request.headers['Range']
 
-            r = requests.get(url, headers=headers, stream=True, timeout=10)
-            
-            def generate():
-                for chunk in r.iter_content(chunk_size=1024*64):
+        r = requests.get(cached_url, headers=headers, stream=True, timeout=10)
+        
+        def generate():
+            try:
+                for chunk in r.iter_content(chunk_size=1024*128):
                     yield chunk
+            except Exception as e:
+                logger.error(f"Stream generation error: {str(e)}")
 
-            resp = Response(generate(), status=r.status_code)
-            for k, v in r.headers.items():
-                if k.lower() in ['content-type', 'content-length', 'accept-ranges', 'content-range']:
-                    resp.headers[k] = v
-            
-            # Critical: Allow Web Audio API to capture this stream
-            resp.headers['Access-Control-Allow-Origin'] = '*'
-            return resp
+        resp = Response(generate(), status=r.status_code)
+        for k, v in r.headers.items():
+            if k.lower() in ['content-type', 'content-length', 'accept-ranges', 'content-range']:
+                resp.headers[k] = v
+        
+        # Critical: Allow Web Audio API to capture this stream
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Range, Content-Type, Authorization'
+        resp.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Range, Accept-Ranges'
+        return resp
     except Exception as e:
-        logger.error(f"YouTube Stream Error: {str(e)}")
-        return jsonify({'error': 'Failed to stream YouTube audio'}), 500
+        logger.error(f"YouTube Proxy Error: {str(e)}")
+        return jsonify({'error': 'Failed to stream audio'}), 500
 
 # 8. ── Playlists API ──
 @app.route('/api/playlists', methods=['GET'])
@@ -472,7 +496,22 @@ def handle_playback(data):
 @socketio.on('add_to_queue')
 def add_to_queue(data):
     room_id, song_data = data['room_id'], data['song']
-    new_song = Song(id=str(uuid.uuid4()), room_id=room_id, title=song_data['title'], artist=song_data.get('artist', 'Unknown'), duration=song_data.get('duration', 0), source=song_data['source'], source_id=song_data['source_id'], thumbnail=song_data.get('thumbnail', ''), added_by_name=song_data.get('added_by', 'Anonymous'))
+    # Calculate next position
+    last_song = Song.query.filter_by(room_id=room_id).order_by(Song.position.desc()).first()
+    pos = (last_song.position + 1) if last_song else 0
+
+    new_song = Song(
+        id=str(uuid.uuid4()), 
+        room_id=room_id, 
+        title=song_data['title'], 
+        artist=song_data.get('artist', 'Unknown'), 
+        duration=song_data.get('duration', 0), 
+        source=song_data['source'], 
+        source_id=song_data['source_id'], 
+        thumbnail=song_data.get('thumbnail', ''), 
+        added_by_name=song_data.get('added_by', 'Anonymous'),
+        position=pos
+    )
     db.session.add(new_song)
     room = Room.query.get(room_id)
     if room and not room.current_song_id:

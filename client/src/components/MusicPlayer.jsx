@@ -228,6 +228,7 @@ const MusicPlayer = () => {
 
                             {/* Actual Media Element (Audio Stream) */}
                             <video
+                                key={`${currentSong.id}-${showVideo}-${currentSong.source}`}
                                 ref={nativeRef}
                                 src={sourceUrl}
                                 crossOrigin="anonymous"
@@ -237,7 +238,7 @@ const MusicPlayer = () => {
                                 onPlay={() => setIsPlaying(true)}
                                 onPause={() => setIsPlaying(false)}
                                 onError={(e) => { console.error('Native error:', e); if (sourceUrl) setHasError(true); }}
-                                className="hidden"
+                                className="absolute opacity-0 pointer-events-none -z-50"
                             />
 
                             {/* Watch Video button */}
