@@ -113,7 +113,7 @@ const PlaybackControls = ({ onOpenEQ }) => {
         normalizeVolume, setNormalizeVolume,
         eqBands,
         hasInteracted, setHasInteracted,
-        room, fetchRoomState,
+        room, user, fetchRoomState,
         isPro, setIsPro,
         ytPlayer,
         resumeAudio,
