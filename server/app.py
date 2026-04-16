@@ -356,8 +356,11 @@ def login():
         data = request.json
         email, password = data.get('email'), data.get('password')
         user = User.query.filter_by(email=email).first()
-        if not user or not check_password_hash(user.password_hash, password):
-            return jsonify({'error': 'Invalid email or password'}), 401
+        if not user:
+            return jsonify({'error': 'Account not found. If the server restarted, you may need to Sign Up again or use a persistent database.'}), 401
+        
+        if not check_password_hash(user.password_hash, password):
+            return jsonify({'error': 'Invalid password'}), 401
         
         if user.email in PRO_EMAILS and not user.is_pro:
             user.is_pro = True
