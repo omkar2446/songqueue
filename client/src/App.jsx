@@ -9,7 +9,6 @@ import Signup from './pages/Signup';
 import Playlists from './pages/Playlists';
 
 function App() {
-    const [user, setUser] = useState(null);
     const spotlightRef = useRef(null);
 
     useEffect(() => {
@@ -25,7 +24,7 @@ function App() {
   return (
     <div className="dark">
       <SocketProvider>
-        <RoomProvider value={{ user, setUser }}>
+        <RoomProvider>
           <BrowserRouter>
             <div className="min-h-screen bg-black relative">
                 <div ref={spotlightRef} className="mouse-spotlight hidden sm:block" />

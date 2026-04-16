@@ -190,6 +190,7 @@ const EqualizerPanel = ({ isOpen, onClose }) => {
                                     )}
                                 </h2>
                                 <p className="text-xs text-gray-500 mt-0.5">Real-time frequency shaping via Web Audio</p>
+                                <p className="text-[10px] text-amber-500/60 font-medium mt-1 uppercase tracking-tighter">Note: Works for Uploads / Direct Links only</p>
                             </div>
                             <div className="flex items-center gap-1">
                                 <button

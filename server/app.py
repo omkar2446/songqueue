@@ -46,6 +46,10 @@ def health_check():
         "timestamp": datetime.datetime.utcnow().isoformat()
     })
 
+@app.route('/api/uploads/<path:filename>')
+def serve_upload(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
 # Ensure tables exist
 with app.app_context():
     db.create_all()
@@ -356,12 +360,19 @@ def get_room_state(room_id):
         'votes': s.votes
     } for s in songs]
 
+    # Calculate drift-corrected playback time
+    calc_time = room.playback_time
+    if room.is_playing and room.last_updated_at:
+        now = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+        elapsed = (now - room.last_updated_at.replace(tzinfo=None)).total_seconds()
+        calc_time += elapsed
+
     return jsonify({
         'id': room.id,
         'name': room.name,
         'current_song_id': room.current_song_id,
         'is_playing': room.is_playing,
-        'playback_time': room.playback_time,
+        'playback_time': calc_time,
         'repeat_mode': room.repeat_mode,
         'repeat_type': room.repeat_type,
         'shuffle_mode': room.shuffle_mode,
@@ -386,7 +397,7 @@ def upload_file(room_id):
             title=file.filename,
             artist="Unknown Upload",
             duration=0, # Hard to get without lib, could be updated on frontend
-            source='file',
+            source='upload',
             source_id=filename,
             added_by_name=request.form.get('user_name', 'Anonymous'),
             room_id=room_id
@@ -535,6 +546,14 @@ def handle_playback(data):
 
     def get_room_songs():
         return Song.query.filter_by(room_id=room_id).order_by(Song.position.asc(), Song.created_at.asc()).all()
+
+    # Before processing new action, sync current calculated time to DB
+    if room.is_playing and room.last_updated_at:
+        now = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+        elapsed = (now - room.last_updated_at.replace(tzinfo=None)).total_seconds()
+        room.playback_time += elapsed
+    
+    room.last_updated_at = datetime.datetime.now(datetime.UTC)
 
     if curr_action == 'play':
         room.is_playing = True
