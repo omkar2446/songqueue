@@ -14,6 +14,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
+import yt_dlp
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -21,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-# ── PRO account (only this user gets GO PRO access) ──
-PRO_OWNER_EMAIL = 'otambe655@gmail.com'
+# ── PRO accounts (these users get GO PRO access) ──
+PRO_EMAILS = ['otambe655@gmail.com', 'SOlove1@gmail.com']
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey-change-this')
@@ -49,6 +50,39 @@ def health_check():
 @app.route('/api/uploads/<path:filename>')
 def serve_upload(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/api/yt/stream/<video_id>')
+def stream_yt(video_id):
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'quiet': True,
+        'no_warnings': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+            url = info['url']
+            
+            # Support byte-range requests for seeking
+            headers = {}
+            if 'Range' in request.headers:
+                headers['Range'] = request.headers['Range']
+
+            r = requests.get(url, headers=headers, stream=True, timeout=10)
+            
+            def generate():
+                for chunk in r.iter_content(chunk_size=1024*64):
+                    yield chunk
+
+            resp = Response(generate(), status=r.status_code)
+            for k, v in r.headers.items():
+                if k.lower() in ['content-type', 'content-length', 'accept-ranges', 'content-range']:
+                    resp.headers[k] = v
+            return resp
+    except Exception as e:
+        logger.error(f"YouTube Stream Error: {str(e)}")
+        return jsonify({'error': 'Failed to stream YouTube audio'}), 500
 
 # Ensure tables exist
 with app.app_context():
@@ -248,7 +282,8 @@ def signup():
             id=user_id,
             name=name,
             email=email,
-            password_hash=generate_password_hash(password)
+            password_hash=generate_password_hash(password),
+            is_pro=(email in PRO_EMAILS)
         )
         db.session.add(user)
     
@@ -310,8 +345,8 @@ def join_session():
         if not user:
             user_id = str(uuid.uuid4())
             user = User(id=user_id, name=name, email=email)
-            # Auto-grant PRO to owner
-            if email == PRO_OWNER_EMAIL:
+            # Auto-grant PRO to whitelisted emails
+            if email in PRO_EMAILS:
                 user.is_pro = True
             db.session.add(user)
         else:
