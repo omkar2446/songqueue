@@ -184,7 +184,7 @@ const RoomDashboard = () => {
                 {/* Left: Player & Search */}
                 <div className="flex-1 p-8 flex flex-col gap-8 overflow-y-auto custom-scrollbar">
                     {/* Hero Player Area */}
-                    <div className="glass-card aspect-video w-full max-w-4xl mx-auto flex items-center justify-center relative group overflow-hidden shadow-[0_0_50px_rgba(59,130,246,0.1)]">
+                    <div className="glass-card w-full max-w-4xl mx-auto flex flex-col items-center justify-center p-8 relative group overflow-hidden shadow-[0_0_50px_rgba(59,130,246,0.1)]">
                         {roomNotFound ? (
                             <div className="flex flex-col items-center gap-6 p-12 text-center">
                                 <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.1)]">

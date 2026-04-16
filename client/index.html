@@ -8,7 +8,66 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Suppress ERR_BLOCKED_BY_CLIENT console noise from YouTube telemetry/analytics
+         These are blocked by ad-blockers and have zero effect on playback. -->
+    <script>
+      (function () {
+        // List of URL substrings to silently suppress
+        const BLOCKED_PATTERNS = [
+          'youtubei/v1/log_event',
+          'youtubei/v1/att',
+          'youtube.com/ptracking',
+          'youtube.com/api/stats',
+          'youtube.com/generate_204',
+          'doubleclick.net',
+          'googlesyndication.com',
+        ];
+
+        const isSuppressed = (url) => {
+          if (!url) return false;
+          const s = typeof url === 'string' ? url : (url.url || url.toString());
+          return BLOCKED_PATTERNS.some(p => s.includes(p));
+        };
+
+        // ── Patch fetch ──────────────────────────────────────────
+        const _fetch = window.fetch.bind(window);
+        window.fetch = function (input, init) {
+          if (isSuppressed(input)) {
+            return Promise.resolve(new Response('', { status: 200, statusText: 'OK (suppressed)' }));
+          }
+          return _fetch(input, init).catch(err => {
+            if (isSuppressed(input)) return new Response('', { status: 200 });
+            throw err;
+          });
+        };
+
+        // ── Patch XMLHttpRequest ─────────────────────────────────
+        const _open = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+          if (isSuppressed(url)) {
+            // Mark this request so we can silently ignore it
+            this._suppressed = true;
+          }
+          return _open.call(this, method, url, ...rest);
+        };
+
+        const _send = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function (body) {
+          if (this._suppressed) {
+            // Fake a successful empty response — never actually sends
+            Object.defineProperty(this, 'readyState', { get: () => 4 });
+            Object.defineProperty(this, 'status', { get: () => 200 });
+            Object.defineProperty(this, 'responseText', { get: () => '' });
+            return;
+          }
+          return _send.call(this, body);
+        };
+      })();
+    </script>
+
   </head>
+
   <body class="bg-[#0c0b0f]">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

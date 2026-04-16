@@ -16,6 +16,7 @@ const MusicPlayer = () => {
     const playerRef = useRef(null);
     const [isPlayerReady, setIsPlayerReady] = useState(false);
     const [hasError, setHasError] = useState(false);
+    const [showVideo, setShowVideo] = useState(false);
 
     // ── 1. Critical Initialization Fixes ──
     const opts = {
@@ -126,8 +127,21 @@ const MusicPlayer = () => {
                     />
                 )}
                 <div className="relative w-64 h-64 md:w-80 md:h-80 rounded-full overflow-hidden border-4 border-white/5 shadow-2xl z-10 p-1 bg-white/5 backdrop-blur-md">
-                    <img src={currentSong.thumbnail} alt="" className="w-full h-full object-cover rounded-full" />
+                    <img src={currentSong.thumbnail} alt="" className={`w-full h-full object-cover rounded-full transition-all duration-700 ${showVideo ? 'scale-150 blur-3xl opacity-20' : 'scale-100 opacity-100'}`} />
                     <AnimatePresence>
+                        {isPlaying && !showVideo && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                onClick={() => setShowVideo(true)}
+                                className="absolute inset-0 m-auto w-16 h-16 bg-blue-500/80 hover:bg-blue-500 text-white rounded-full flex items-center justify-center backdrop-blur-md shadow-2xl transition-all hover:scale-110 active:scale-95 group z-20"
+                            >
+                                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                    <path d="M21.58 7.19c-.23-.86-.91-1.54-1.77-1.77C18.25 5 12 5 12 5s-6.25 0-7.81.42c-.86.23-1.54.91-1.77 1.77C2 8.75 2 12 2 12s0 3.25.42 4.81c.23.86.91 1.54 1.77 1.77C5.75 19 12 19 12 19s6.25 0 7.81-.42c.86-.23 1.54-.91 1.77-1.77.42-1.56.42-4.81.42-4.81s0-3.25-.42-4.81zM10 15V9l5.2 3L10 15z"/>
+                                </svg>
+                            </motion.button>
+                        )}
                         {hasError && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-center p-4">
                                 <WifiOff className="text-red-500 mb-2" />
@@ -145,19 +159,20 @@ const MusicPlayer = () => {
 
             {/* THE ENGINE */}
             <div className={`transition-all duration-500 rounded-lg overflow-hidden border border-white/10 ${
-                isPro 
+                (isPro && !showVideo)
                 ? "opacity-0 pointer-events-none absolute left-[-9999px] w-0 h-0" 
-                : "opacity-100 w-[300px] h-[169px] bg-black shadow-2xl mt-4"
+                : "opacity-100 w-full max-w-[560px] aspect-video bg-black shadow-2xl mt-4 relative"
             }`}>
-                {!isPro && (
-                    <div className="bg-blue-500/20 text-[10px] text-blue-400 px-2 py-1 flex items-center justify-between">
-                        <span className="font-bold">FREE VERSION - ADS SUPPORTED</span>
-                        <span className="opacity-50 italic">Go PRO to hide</span>
+                {(!isPro || showVideo) && (
+                    <div className="bg-blue-500/20 text-[10px] text-blue-400 px-2 py-1 flex items-center justify-between absolute top-0 left-0 right-0 z-10 backdrop-blur-md">
+                        <span className="font-bold">{isPro ? 'PRO VIDEO MODE' : 'FREE VERSION - ADS SUPPORTED'}</span>
+                        <button onClick={() => setShowVideo(false)} className="opacity-50 hover:opacity-100 italic">Hide Video</button>
                     </div>
                 )}
                 <YouTube 
                     videoId={currentSong.source_id} 
-                    opts={{...opts, width: isPro ? '0' : '300', height: isPro ? '0' : '169'}} 
+                    opts={{...opts, width: '100%', height: '100%'}} 
+                    className="w-full h-full"
                     onReady={onReady}
                     onStateChange={onStateChange}
                     onError={onError}

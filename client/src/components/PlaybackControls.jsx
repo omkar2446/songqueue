@@ -111,6 +111,7 @@ const PlaybackControls = ({ onOpenEQ }) => {
         shuffleMode, setShuffleMode,
         crossfadeDuration, setCrossfadeDuration,
         normalizeVolume, setNormalizeVolume,
+        hasInteracted, setHasInteracted,
         room, fetchRoomState,
         isPro, setIsPro
     } = useRoom();
