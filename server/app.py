@@ -199,6 +199,9 @@ def stream_yt(video_id):
             for k, v in r.headers.items():
                 if k.lower() in ['content-type', 'content-length', 'accept-ranges', 'content-range']:
                     resp.headers[k] = v
+            
+            # Critical: Allow Web Audio API to capture this stream
+            resp.headers['Access-Control-Allow-Origin'] = '*'
             return resp
     except Exception as e:
         logger.error(f"YouTube Stream Error: {str(e)}")
