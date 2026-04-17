@@ -33,13 +33,13 @@ PRO_EMAILS = ['otambe655@gmail.com', 'SOlove1@gmail.com']
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey-change-this')
 
-# PERSISTENCE FIX: Ensure DB is in a stable location (Absolute path)
+# PERSISTENCE FIX: Ensure DB is in a stable location (Absolute path with forward slashes)
 base_dir = os.path.dirname(os.path.abspath(__file__))
 db_dir = os.path.join(base_dir, 'data')
 if not os.path.exists(db_dir):
     os.makedirs(db_dir)
 
-db_path = os.path.join(db_dir, 'songqueue.db')
+db_path = os.path.join(db_dir, 'songqueue.db').replace('\\', '/')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f"sqlite:///{db_path}")
 
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
@@ -364,11 +364,15 @@ def get_playlist_songs(user_id, pid):
     if not p: return jsonify({'error': 'Not found'}), 404
     songs = PlaylistSong.query.filter_by(playlist_id=pid).all()
     return jsonify({
+        'id': p.id,
         'name': p.name,
+        'is_public': p.is_public,
+        'owner': User.query.get(p.user_id).name,
         'songs': [{
-            'id': s.id, 'title': s.title, 'artist': s.artist,
-            'source': s.source, 'source_id': s.source_id,
-            'thumbnail': s.thumbnail, 'duration': s.duration
+            'id': s.id, 'title': s.title, 'artist': s.artist, 
+            'duration': s.duration, 'source': s.source, 
+            'source_id': s.source_id, 'thumbnail': s.thumbnail,
+            'url': s.url
         } for s in songs]
     })
 
@@ -410,12 +414,14 @@ def signup():
             return jsonify({'error': 'All fields are required'}), 400
         
         user = User.query.filter_by(email=email).first()
+        deterministic_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, email))
+        
         if user:
             if user.password_hash: return jsonify({'error': 'Email already registered'}), 400
             user.name, user.password_hash = name, generate_password_hash(password)
         else:
             user = User(
-                id=str(uuid.uuid4()), name=name, email=email,
+                id=deterministic_id, name=name, email=email,
                 password_hash=generate_password_hash(password),
                 is_pro=(email in PRO_EMAILS)
             )
@@ -439,8 +445,9 @@ def login():
         if not user:
             # Check if we are in volatile SQLite mode
             if "postgresql" not in app.config['SQLALCHEMY_DATABASE_URI']:
+                deterministic_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, email))
                 user = User(
-                    id=str(uuid.uuid4()), 
+                    id=deterministic_id, 
                     name=email.split('@')[0], 
                     email=email, 
                     password_hash=generate_password_hash(password),
@@ -448,7 +455,7 @@ def login():
                 )
                 db.session.add(user)
                 db.session.commit()
-                logger.info(f"Auto-recovered account for {email} after DB wipe.")
+                logger.info(f"Auto-recovered account for {email} with ID {user.id}")
             else:
                 return jsonify({'error': 'Account not found. Please Sign Up.'}), 401
         
@@ -506,7 +513,7 @@ def get_room_state(room_id):
     if not room: return jsonify({'error': 'Room not found'}), 404
     
     songs = Song.query.filter_by(room_id=room_id).order_by(Song.position.asc(), Song.created_at.asc()).all()
-    queue = [{ 'id': s.id, 'title': s.title, 'artist': s.artist, 'duration': s.duration, 'source': s.source, 'source_id': s.source_id, 'thumbnail': s.thumbnail, 'added_by': s.added_by_name, 'votes': s.votes } for s in songs]
+    queue = [{ 'id': s.id, 'title': s.title, 'artist': s.artist, 'duration': s.duration, 'source': s.source, 'source_id': s.source_id, 'thumbnail': s.thumbnail, 'url': s.url, 'added_by': s.added_by_name, 'votes': s.votes } for s in songs]
 
     calc_time = room.playback_time
     if room.is_playing and room.last_updated_at:
