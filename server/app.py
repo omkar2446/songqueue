@@ -68,13 +68,28 @@ def get_configured_database_uri():
     )
     normalized_database_url = normalize_database_url(raw_database_url)
     if normalized_database_url:
+        logger.info("Using PostgreSQL database from environment variable.")
         return normalized_database_url
+    logger.warning("No DATABASE_URL found! Falling back to local SQLite: %s", db_path)
     return f"sqlite:///{db_path}"
 
-app.config['SQLALCHEMY_DATABASE_URI'] = get_configured_database_uri()
+def mask_db_uri(uri):
+    """Mask password in database URI for safe logging."""
+    if '://' in uri and '@' in uri:
+        prefix = uri.split('://')[0]
+        after_at = uri.split('@', 1)[1]
+        return f"{prefix}://***:***@{after_at}"
+    return uri
+
+final_db_uri = get_configured_database_uri()
+app.config['SQLALCHEMY_DATABASE_URI'] = final_db_uri
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True
 }
+
+logger.info("=" * 60)
+logger.info("DATABASE URI (masked): %s", mask_db_uri(final_db_uri))
+logger.info("=" * 60)
 
 db = SQLAlchemy(app)
 
@@ -249,11 +264,18 @@ def initialize_database():
             db.session.commit()
             run_schema_migrations()
 
-            logger.info("Database ready using %s", get_database_backend())
+            # Verify tables were actually created
+            table_inspector = inspect(db.engine)
+            created_tables = table_inspector.get_table_names()
+
+            logger.info("=" * 60)
+            logger.info("DATABASE READY: %s", get_database_backend().upper())
+            logger.info("Tables found: %s", created_tables)
             if is_sqlite_database():
                 logger.info("SQLite path: %s", db_path)
             else:
-                logger.info("PostgreSQL connection configured from environment.")
+                logger.info("PostgreSQL connection active.")
+            logger.info("=" * 60)
             return
         except Exception as exc:
             db.session.rollback()
@@ -265,7 +287,8 @@ def initialize_database():
                 str(exc)[:120]
             )
             if retry_count >= max_retries:
-                logger.error("Critical: database connection failed after retries.")
+                logger.error("CRITICAL: Database connection failed after %s retries.", max_retries)
+                logger.error("URI was: %s", mask_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI', '')))
                 raise
             time.sleep(2)
 
@@ -349,37 +372,81 @@ def token_required(f):
     return decorated
 
 # 7. ── CORE ROUTES ──
-@app.before_request
-def ensure_db():
-    if not hasattr(app, '_db_initialized'):
-        try:
-            db.create_all()
-            app._db_initialized = True
-            logger.info("Database tables verified/created via before_request")
-        except Exception as e:
-            logger.error(f"Error checking/creating DB elements inline: {e}")
 
 @app.route('/test', methods=['GET'])
 def test_db():
+    """Diagnostic route: creates tables, inserts a test user, and reports table status."""
     try:
+        # Force table creation
         db.create_all()
+
+        # Insert a test user
         uid = str(uuid.uuid4())
         test_user = User(
             id=uid,
-            name=f"Test_{uid[:5]}",
-            email=f"test_{uid}@example.com",
-            password_hash="testhash"
+            name=f"TestUser_{uid[:6]}",
+            email=f"test_{uid[:8]}@example.com",
+            password_hash=generate_password_hash("testpass123")
         )
         db.session.add(test_user)
         db.session.commit()
+
+        # Verify: list all tables and row counts
+        table_inspector = inspect(db.engine)
+        tables = table_inspector.get_table_names()
+        table_counts = {}
+        for t in tables:
+            try:
+                count = db.session.execute(text(f'SELECT COUNT(*) FROM "{t}"')).scalar()
+                table_counts[t] = count
+            except Exception:
+                table_counts[t] = 'error'
+
         return jsonify({
-            "status": "success", 
-            "message": "Connected to database and inserted test user.",
-            "test_user_id": uid
+            "status": "success",
+            "message": "Database is working! Test user inserted.",
+            "database_backend": get_database_backend(),
+            "database_uri_masked": mask_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI', '')),
+            "test_user_id": uid,
+            "tables_found": tables,
+            "row_counts": table_counts
         }), 200
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Test route DB insert error: {e}")
+        logger.error(f"Test route error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "database_backend": get_database_backend(),
+            "database_uri_masked": mask_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI', ''))
+        }), 500
+
+@app.route('/db-info', methods=['GET'])
+def db_info():
+    """Returns current database connection info for debugging."""
+    try:
+        table_inspector = inspect(db.engine)
+        tables = table_inspector.get_table_names()
+        table_counts = {}
+        for t in tables:
+            try:
+                count = db.session.execute(text(f'SELECT COUNT(*) FROM "{t}"')).scalar()
+                table_counts[t] = count
+            except Exception:
+                table_counts[t] = 'error'
+
+        return jsonify({
+            "database_backend": get_database_backend(),
+            "database_uri_masked": mask_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI', '')),
+            "storage_mode": get_storage_mode(),
+            "is_render": is_render_environment,
+            "tables": tables,
+            "row_counts": table_counts,
+            "env_DATABASE_URL_set": bool(os.getenv('DATABASE_URL')),
+            "env_RENDER_DATABASE_URL_set": bool(os.getenv('RENDER_DATABASE_URL')),
+        })
+    except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/')
@@ -389,10 +456,9 @@ def health_check():
         "service": "SongQueue API",
         "runtime": "threading",
         "database_backend": get_database_backend(),
+        "database_uri_masked": mask_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI', '')),
         "storage_mode": get_storage_mode(),
         "database_path": get_database_path(),
-        "excel_backup_path": excel_path if is_sqlite_database() else None,
-        "json_backup_path": json_path if is_sqlite_database() else None,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     })
 
