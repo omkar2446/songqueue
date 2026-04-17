@@ -47,6 +47,7 @@ os.makedirs(upload_dir, exist_ok=True)
 
 db_path = os.path.join(db_dir, 'songqueue.db').replace('\\', '/')
 excel_path = os.path.join(db_dir, 'songqueue.xlsx').replace('\\', '/')
+json_path = os.path.join(db_dir, 'songqueue.json').replace('\\', '/')
 app.config['SQLITE_DB_PATH'] = db_path
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
 app.config['UPLOAD_FOLDER'] = upload_dir
@@ -208,31 +209,46 @@ with app.app_context():
                 logger.info(f"Migration Success: {stmt}")
             except Exception: pass 
 
-# 5.5 ── Automated Excel Backup ──
-def export_to_excel():
+# 5.5 ── Automated Data Synchronizer ──
+last_backup_mtime = 0
+def sync_database_backups():
     try:
-        import sqlite3
+        import sqlite3, json
         if not os.path.exists(db_path):
             return
         conn = sqlite3.connect(db_path)
+        tables = pd.read_sql("SELECT name FROM sqlite_master WHERE type='table'", conn)
+        
+        json_data = {}
         with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
-            tables = pd.read_sql("SELECT name FROM sqlite_master WHERE type='table'", conn)
             for table_name in tables['name']:
                 df = pd.read_sql(f"SELECT * from {table_name}", conn)
                 df.to_excel(writer, sheet_name=table_name[:31], index=False)
+                json_data[table_name] = df.to_dict(orient='records')
+                
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, default=str, indent=4)
+            
         conn.close()
-        logger.info(f"Database successfully backed up to Excel: {excel_path}")
+        logger.info(f"Database synchronized! Copies updated: Excel & JSON")
     except Exception as e:
-        logger.error(f"Error exporting to Excel: {e}")
+        logger.error(f"Error during backup sync: {e}")
 
-def auto_excel_backup():
-    # Initial backup on start
-    time.sleep(5)
+def auto_db_backup():
+    global last_backup_mtime
+    time.sleep(5) # Let server boot up
     while True:
-        export_to_excel()
-        time.sleep(300) # Backup every 5 minutes
+        try:
+            if os.path.exists(db_path):
+                current_mtime = os.path.getmtime(db_path)
+                if current_mtime > last_backup_mtime:
+                    sync_database_backups()
+                    last_backup_mtime = current_mtime
+        except Exception:
+            pass
+        time.sleep(3) # Continuously check for changes every 3 seconds
 
-backup_thread = threading.Thread(target=auto_excel_backup, daemon=True)
+backup_thread = threading.Thread(target=auto_db_backup, daemon=True)
 backup_thread.start()
 
 # 6. ── Auth Helpers ──
@@ -267,13 +283,14 @@ def health_check():
         "storage_mode": get_storage_mode(),
         "database_path": app.config['SQLITE_DB_PATH'],
         "excel_backup_path": excel_path,
+        "json_backup_path": json_path,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     })
 
-@app.route('/api/admin/export-excel')
-def manual_excel_export():
-    export_to_excel()
-    return jsonify({"success": True, "path": excel_path})
+@app.route('/api/admin/export-data')
+def manual_export_endpoint():
+    sync_database_backups()
+    return jsonify({"success": True, "excel": excel_path, "json": json_path})
 
 @app.route('/api/uploads/<path:filename>')
 def serve_upload(filename):
