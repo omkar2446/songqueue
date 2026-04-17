@@ -505,6 +505,7 @@ def signup():
             db.session.add(user)
         
         db.session.commit()
+        threading.Thread(target=sync_database_backups, daemon=True).start()
         return jsonify({'token': create_token(user.id), 'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_pro': user.is_pro}})
     except Exception as e:
         logger.error(f"Signup error: {str(e)}")
@@ -530,6 +531,7 @@ def login():
             )
             db.session.add(user)
             db.session.commit()
+            threading.Thread(target=sync_database_backups, daemon=True).start()
             logger.info(f"Auto-recovered account for {email} with ID {user.id}")
         
         if not check_password_hash(user.password_hash, password):
@@ -573,6 +575,7 @@ def join_session():
             user.room_id = room_id
 
         db.session.commit()
+        threading.Thread(target=sync_database_backups, daemon=True).start()
         return jsonify({'token': create_token(user.id), 'room_id': room_id, 'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_admin': user.is_admin, 'is_pro': user.is_pro}})
     except Exception as e:
         logger.error(f"Join error: {str(e)}")
