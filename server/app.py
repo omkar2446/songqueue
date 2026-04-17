@@ -8,6 +8,7 @@ import traceback
 import threading
 import time
 import pandas as pd
+import re
 from functools import wraps
 
 from flask import Flask, request, jsonify, send_from_directory, Response
@@ -552,6 +553,58 @@ def stream_yt(video_id):
     except Exception as e:
         logger.error(f"YouTube Proxy Error: {str(e)}")
         return jsonify({'error': 'Failed to stream audio'}), 500
+
+@app.route('/api/spotify/resolve', methods=['POST', 'OPTIONS'])
+def resolve_spotify():
+    if request.method == 'OPTIONS':
+        resp = Response()
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return resp
+        
+    data = request.json or {}
+    url = data.get('url')
+    if not url: return jsonify({'error': 'URL missing'}), 400
+    
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
+    try:
+        html = requests.get(url, headers=headers, timeout=10).text
+        title_match = re.search(r'<meta property="og:title" content="([^"]+)"', html)
+        desc_match = re.search(r'<meta property="og:description" content="([^"]+)"', html)
+        
+        title = title_match.group(1) if title_match else ''
+        desc = desc_match.group(1) if desc_match else ''
+        
+        # description is usually: Artist Name · Song · 2023
+        artist = desc.split('·')[0].strip() if '·' in desc else ''
+        
+        query = f"ytsearch1:{title} {artist} audio"
+        
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(query, download=False)
+            if 'entries' in info and len(info['entries']) > 0:
+                entry = info['entries'][0]
+                return jsonify({
+                    'success': True,
+                    'youtube_id': entry.get('id'),
+                    'title': title or entry.get('title'),
+                    'artist': artist or entry.get('uploader'),
+                    'thumbnail': f"https://img.youtube.com/vi/{entry.get('id')}/hqdefault.jpg",
+                    'duration': entry.get('duration', 0),
+                    '_is_collection': False
+                })
+        return jsonify({'error': 'Not found on YouTube'}), 404
+        
+    except Exception as e:
+        logger.error(f"Spotify resolve error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 # 8. ── Playlists API ──
 @app.route('/api/playlists', methods=['GET'])
