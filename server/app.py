@@ -10,6 +10,7 @@ from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text, desc
 from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
@@ -32,8 +33,9 @@ PRO_EMAILS = ['otambe655@gmail.com', 'SOlove1@gmail.com']
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey-change-this')
 
-# PERSISTENCE FIX: Ensure DB is in a stable location
-db_dir = os.path.join(os.getcwd(), 'data')
+# PERSISTENCE FIX: Ensure DB is in a stable location (Absolute path)
+base_dir = os.path.dirname(os.path.abspath(__file__))
+db_dir = os.path.join(base_dir, 'data')
 if not os.path.exists(db_dir):
     os.makedirs(db_dir)
 
@@ -45,9 +47,11 @@ if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
 
 if not os.getenv('DATABASE_URL'):
     print("\n" + "!"*60)
-    print("WARNING: Using LOCAL SQLite database. data will be LOST on restart")
-    print("if deployed on platforms like Render without a persistent disk.")
-    print("Solution: Add DATABASE_URL to your environment variables.")
+    print("CRITICAL WARNING: USING TEMPORARY DATABASE")
+    print("Data WILL BE LOST when the server restarts or redeploys.")
+    print("To save playlists PERMANENTLY, you MUST:")
+    print("1. Create a FREE PostgreSQL Database (e.g., on Render or Neon)")
+    print("2. Add the 'DATABASE_URL' environment variable to your Host")
     print("!"*60 + "\n")
 
 app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
@@ -82,9 +86,9 @@ with app.app_context():
             
             print("\n" + "!"*60)
             if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI']:
-                print(f"DATABASE:  SUCCESS (PostgreSQL - PERMANENT STORAGE)")
+                print(f"DATABASE:  SUCCESS (PostgreSQL - PERMANENT STORAGE ACTIVE)")
             else:
-                print(f"DATABASE:  WARNING (SQLite - VOLATILE/TEMPORARY)")
+                print(f"DATABASE:  MODE (SQLite - LOCAL/TEMPORARY)")
             print("!"*60 + "\n")
             
         except Exception as e:

@@ -115,6 +115,7 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
                     artist: data.artist || 'YouTube',
                     thumbnail: data.thumbnail || `https://img.youtube.com/vi/${data.youtube_id}/hqdefault.jpg`,
                     duration: data.duration,
+                    url: `https://www.youtube.com/watch?v=${data.youtube_id}`,
                     _fromSpotify: true,
                     _is_collection: data._is_collection
                 });
@@ -149,6 +150,7 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
                     title: 'Loading...',
                     artist: 'YouTube',
                     thumbnail: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
+                    url: `https://www.youtube.com/watch?v=${id}`
                 });
                 setStatus('loading');
 
@@ -162,6 +164,7 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
                             title: data.title || 'YouTube Video',
                             artist: data.author_name || 'YouTube',
                             thumbnail: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
+                            url: `https://www.youtube.com/watch?v=${id}`,
                             duration: 0,
                         });
                         setStatus('ok');
@@ -173,6 +176,7 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
                             title: 'YouTube Video',
                             artist: 'YouTube',
                             thumbnail: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
+                            url: `https://www.youtube.com/watch?v=${id}`
                         });
                         setStatus('ok');
                     });
@@ -204,6 +208,7 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
                     title: val.split('/').pop().split('?')[0] || 'Direct Audio',
                     artist: new URL(val).hostname,
                     thumbnail: '',
+                    url: val
                 });
                 setStatus('ok');
             } catch {

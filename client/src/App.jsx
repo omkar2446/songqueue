@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { SocketProvider } from './context/SocketContext';
 import { RoomProvider } from './context/RoomContext';
 import JoinRoom from './pages/JoinRoom';
@@ -9,6 +10,24 @@ import Signup from './pages/Signup';
 import Playlists from './pages/Playlists';
 import LandingPage from './pages/LandingPage';
 import GlobalPlayerHost from './components/GlobalPlayerHost';
+import PageTransition from './components/PageTransition';
+import { ToastProvider } from './context/ToastContext';
+
+const AppRoutes = () => {
+    const location = useLocation();
+    return (
+        <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
+                <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+                <Route path="/join" element={<PageTransition><JoinRoom /></PageTransition>} />
+                <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
+                <Route path="/signup" element={<PageTransition><Signup /></PageTransition>} />
+                <Route path="/playlists" element={<PageTransition><Playlists /></PageTransition>} />
+                <Route path="/room/:room_id" element={<PageTransition><RoomDashboard /></PageTransition>} />
+            </Routes>
+        </AnimatePresence>
+    );
+};
 
 function App() {
     const spotlightRef = useRef(null);
@@ -27,20 +46,15 @@ function App() {
     <div className="dark">
       <SocketProvider>
         <RoomProvider>
-          <BrowserRouter>
-            <div className="min-h-screen bg-black relative">
+          <ToastProvider>
+            <BrowserRouter>
+            <div className="min-h-screen bg-[#0c0b0f] relative overflow-hidden">
                 <div ref={spotlightRef} className="mouse-spotlight hidden sm:block" />
                 <GlobalPlayerHost />
-                <Routes>
-                  <Route path="/" element={<LandingPage />} />
-                  <Route path="/join" element={<JoinRoom />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                  <Route path="/playlists" element={<Playlists />} />
-                  <Route path="/room/:room_id" element={<RoomDashboard />} />
-                </Routes>
+                <AppRoutes />
             </div>
           </BrowserRouter>
+          </ToastProvider>
         </RoomProvider>
       </SocketProvider>
     </div>

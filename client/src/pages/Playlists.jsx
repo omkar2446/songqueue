@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useRoom } from '../context/RoomContext';
+import { useToast } from '../context/ToastContext';
 import { 
     Library, Plus, Music2, Trash2, Play, ChevronRight, 
     ArrowLeft, ListMusic, Music, Search, Heart, Loader2
@@ -11,6 +12,7 @@ import SearchModal from '../components/SearchModal';
 
 const Playlists = () => {
     const { user, logout, room } = useRoom();
+    const { showToast } = useToast();
     const navigate = useNavigate();
     
     const [myPlaylists, setMyPlaylists] = useState([]);
@@ -96,7 +98,10 @@ const Playlists = () => {
             setNewName('');
             setShowCreate(false);
             fetchPlaylists();
-        } catch (err) { console.error(err); }
+            showToast('Playlist created!');
+        } catch (err) { 
+            showToast('Failed to create playlist', 'error');
+        }
     };
 
     const handleDelete = async (id, e) => {
@@ -106,7 +111,8 @@ const Playlists = () => {
             await api.delete(`/playlists/${id}`);
             if (selected === id) setSelected(null);
             fetchPlaylists();
-        } catch (err) { console.error(err); }
+            showToast('Playlist removed');
+        } catch (err) { showToast('Delete failed', 'error'); }
     };
 
     const handleRemoveSong = async (sid) => {
@@ -118,7 +124,7 @@ const Playlists = () => {
 
     const addToRoom = async (song) => {
         if (!room) {
-            alert('Join a room first to play songs!');
+            showToast('Join a room first to play songs!', 'info');
             return;
         }
         try {
@@ -126,10 +132,9 @@ const Playlists = () => {
                 ...song,
                 added_by: user.name
             });
-            // feedback could be added here
+            showToast(`Added ${song.title} to queue`);
         } catch (err) { 
-            console.error(err);
-            alert("Failed to add song to room");
+            showToast("Failed to add song to room", "error");
         }
     };
 

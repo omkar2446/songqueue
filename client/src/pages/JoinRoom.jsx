@@ -30,17 +30,12 @@ const JoinRoom = () => {
         setError('');
         setLoading(true);
 
-        // PERSISTENCE: Check if we have a saved anonymous identity to preserve playlists
+        // PERSISTENCE: Require a real email for authenticated users
         let usedEmail = formData.email;
-        if (!usedEmail && mode !== 'signup') {
-            const savedAnon = localStorage.getItem('synco_anon_email');
-            if (savedAnon) {
-                usedEmail = savedAnon;
-            } else {
-                const newAnon = `anon_${Math.random().toString(36).slice(2, 8)}@synco.guest`;
-                localStorage.setItem('synco_anon_email', newAnon);
-                usedEmail = newAnon;
-            }
+        if (!user && !usedEmail) {
+            setError('Please sign in to start a room');
+            setLoading(false);
+            return;
         }
 
         try {
@@ -123,27 +118,22 @@ const JoinRoom = () => {
 
                         {/* Form Content */}
                         <div className="space-y-6">
-                            {mode === 'create' && !user && !localStorage.getItem('synco_anon_email') ? (
+                            {mode === 'create' && !user ? (
                                 <div className="py-6 text-center space-y-6">
                                     <div className="w-16 h-16 bg-red-600/10 rounded-2xl flex items-center justify-center mx-auto">
                                         <ShieldCheck size={32} className="text-red-400" />
                                     </div>
                                     <div className="space-y-2">
-                                        <h3 className="text-lg font-bold">Start Broadcasting</h3>
-                                        <p className="text-sm text-gray-500 px-6">Create a room instantly as a guest or sign in for permanent playlists.</p>
+                                        <h3 className="text-lg font-bold">Authentication Required</h3>
+                                        <p className="text-sm text-gray-500 px-6">Please sign in or create an account to broadcast and manage playlists.</p>
                                     </div>
                                     <div className="flex flex-col gap-3 px-4">
-                                        <button onClick={() => setFormData({...formData, name: 'Host'})} className="w-full bg-red-600 hover:bg-red-500 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-500/20">
-                                            Continue as Guest
+                                        <button onClick={() => navigate('/login')} className="w-full bg-red-600 hover:bg-red-500 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-500/20 shadow-red-500/20">
+                                            Sign In to Start
                                         </button>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => navigate('/login')} className="flex-1 bg-white/5 hover:bg-white/10 text-[var(--text-color)] py-3 rounded-xl font-bold transition-all border border-white/5 text-xs">
-                                                Sign In
-                                            </button>
-                                            <button onClick={() => navigate('/signup')} className="flex-1 bg-white/5 hover:bg-white/10 text-[var(--text-color)] py-3 rounded-xl font-bold transition-all border border-white/5 text-xs">
-                                                Register
-                                            </button>
-                                        </div>
+                                        <button onClick={() => navigate('/signup')} className="w-full bg-white/5 hover:bg-white/10 text-[var(--text-color)] py-4 rounded-2xl font-bold transition-all border border-white/5">
+                                            Register for Free
+                                        </button>
                                     </div>
                                 </div>
                             ) : (
