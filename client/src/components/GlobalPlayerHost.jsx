@@ -12,12 +12,13 @@ const GlobalPlayerHost = () => {
     const {
         currentSong, isPlaying, setIsPlaying,
         playbackTime, setPlaybackTime,
-        setDuration, volume, 
+        duration, setDuration, volume, 
         setYtPlayer,
         normalizeVolume,
         resumeAudio,
         showVideo, setShowVideo,
-        setPlaybackError
+        setPlaybackError,
+        room
     } = useRoom();
 
     const socket = useSocket();
@@ -25,6 +26,12 @@ const GlobalPlayerHost = () => {
     const nativeRef = useRef(null);
     const [isInternalReady, setIsInternalReady] = useState(false);
     const pollInterval = useRef(null);
+    const hasSentAutoNext = useRef(false);
+
+    // Reset auto-next flag when song changes
+    useEffect(() => {
+        hasSentAutoNext.current = false;
+    }, [currentSong?.id]);
 
     const isYoutube = currentSong?.source === 'youtube';
 
@@ -39,7 +46,15 @@ const GlobalPlayerHost = () => {
                     } else if (nativeRef.current) {
                         t = nativeRef.current.currentTime;
                     }
-                    if (t) setPlaybackTime(t);
+                    if (t) {
+                        setPlaybackTime(t);
+                        
+                        // Early Auto-Play: Transition to next song 7 seconds before end
+                        if (duration > 15 && (duration - t <= 7) && !hasSentAutoNext.current && room?.id) {
+                            hasSentAutoNext.current = true;
+                            socket?.emit('playback_control', { room_id: room.id, action: 'next' });
+                        }
+                    }
                 } catch (_) {}
             }, 1000);
         } else {
@@ -147,7 +162,7 @@ const GlobalPlayerHost = () => {
                         crossOrigin="anonymous"
                         playsInline
                         onLoadedMetadata={onNativeLoaded}
-                        onEnded={() => socket?.emit('playback_control', { room_id: currentSong.room_id, action: 'next' })}
+                        onEnded={() => socket?.emit('playback_control', { room_id: room?.id, action: 'next' })}
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}
                         onError={() => { if (sourceUrl) setPlaybackError(true); }}
@@ -164,7 +179,7 @@ const GlobalPlayerHost = () => {
                         onReady={onYtReady} 
                         onStateChange={(e) => {
                             const YT = window.YT?.PlayerState;
-                            if (e.data === YT.ENDED) socket?.emit('playback_control', { room_id: currentSong.room_id, action: 'next' });
+                            if (e.data === YT.ENDED) socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
                             if (e.data === YT.PLAYING) setIsPlaying(true);
                             if (e.data === YT.PAUSED) setIsPlaying(false);
                         }} 
