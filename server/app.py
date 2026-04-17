@@ -796,7 +796,7 @@ def upload_file(room_id):
             artist="Upload", 
             source='upload', 
             source_id=filename, 
-            url=f"{BASE_URL}/api/uploads/{filename}",
+            url=f"{request.host_url.rstrip('/')}/api/uploads/{filename}",
             added_by_name=request.form.get('user_name', 'Anonymous'), 
             room_id=room_id
         )

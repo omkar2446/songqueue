@@ -19,7 +19,7 @@ const shouldUseLocalBackend = import.meta.env.DEV || isLocalAddress(currentHostn
 const BASE_URL = import.meta.env.VITE_BASE_URL || (
     shouldUseLocalBackend
         ? localDevBaseUrl
-        : 'https://songqueue.onrender.com'
+        : 'https://songqueue-1.onrender.com'
 );
 const API_BASE_URL = `${BASE_URL}/api`;
 const SOCKET_URL = BASE_URL;

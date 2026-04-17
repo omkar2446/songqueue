@@ -13,7 +13,7 @@ Synco is a full-stack web application that lets multiple users join a virtual ro
 ## Tech Stack
 - **Backend**: Python, Flask, Flask-SocketIO, SQLAlchemy
 - **Frontend**: React, Vite, Tailwind CSS, Framer Motion, Lucide Icons
-- **Database**: SQLite stored in `server/data/songqueue.db`
+- **Database**: PostgreSQL (Render) / SQLite (local dev)
 
 ## Setup Instructions
 
@@ -36,13 +36,9 @@ Synco is a full-stack web application that lets multiple users join a virtual ro
    python app.py
    ```
 
-The backend runs on `http://localhost:5000`.
+The backend runs on `http://localhost:5000` locally.
 
-All app data is stored in this SQLite file:
-
-```text
-server/data/songqueue.db
-```
+Production backend: `https://songqueue-1.onrender.com`
 
 ### 2. Frontend Setup
 1. Navigate to the `client` directory:
@@ -70,5 +66,5 @@ To search for YouTube videos, you need an API key:
 4. Create credentials and paste the API key into `server/.env`.
 
 ### Data Persistence
-- The backend always uses `server/data/songqueue.db`.
-- If you deploy on a host with an ephemeral filesystem, the file itself must live on persistent storage or it will be lost when the host restarts.
+- **Production**: PostgreSQL on Render (set `DATABASE_URL` env var).
+- **Local development**: Falls back to SQLite at `server/data/songqueue.db`.
