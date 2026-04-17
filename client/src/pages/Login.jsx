@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useRoom } from '../context/RoomContext';
-import { Music, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { Music, Mail, Lock, Loader2 } from 'lucide-react';
 import AntigravityBackground from '../components/AntigravityBackground';
 
 const Login = () => {
@@ -33,7 +33,7 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen w-full flex items-center justify-center p-6 bg-[var(--bg-color)] text-[var(--text-color)] overflow-hidden relative transition-colors duration-500">
+        <div className="app-shell min-h-screen w-full overflow-hidden relative bg-[var(--bg-color)] text-[var(--text-color)] transition-colors duration-500">
             <AntigravityBackground />
             
             <motion.div 
@@ -52,7 +52,7 @@ const Login = () => {
                         ease: "easeInOut" 
                     }
                 }}
-                className="w-[92%] sm:w-full sm:max-w-[440px] z-10 rim-light"
+                className="z-10 mx-auto flex min-h-screen w-[92%] items-center justify-center py-10 sm:w-full sm:max-w-[440px] rim-light"
             >
                 <div className="glass-card">
                     <div className="p-8 sm:p-10 space-y-7">
@@ -68,14 +68,15 @@ const Login = () => {
 
                         {/* Title Section */}
                         <div className="space-y-1.5">
+                            <div className="section-kicker">Back in the room</div>
                             <h1 className="text-3xl sm:text-[2.25rem] font-extrabold tracking-tight leading-tight premium-text">Welcome back.</h1>
-                            <p className="text-gray-500 text-sm leading-relaxed">Sign in to your account.</p>
+                            <p className="text-[var(--text-muted)] text-sm leading-relaxed">Sign in to your account and jump straight into your saved rooms and playlists.</p>
                         </div>
 
                         <form onSubmit={handleLogin} className="space-y-6">
                             <div className="space-y-4">
                                 <div className="space-y-1.5 px-1">
-                                    <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 ml-1">Email Address</label>
+                                    <label className="field-label">Email Address</label>
                                     <div className="relative group">
                                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-red-500 transition-colors" size={18} />
                                         <input 
@@ -83,14 +84,14 @@ const Login = () => {
                                             required
                                             value={email}
                                             onChange={e => setEmail(e.target.value)}
-                                            className="w-full glass-input"
+                                            className="glass-input pl-12"
                                             placeholder="alex@example.com"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="space-y-1.5 px-1">
-                                    <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 ml-1">Password</label>
+                                    <label className="field-label">Password</label>
                                     <div className="relative group">
                                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-red-500 transition-colors" size={18} />
                                         <input 
@@ -106,7 +107,7 @@ const Login = () => {
                             </div>
 
                             {error && (
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-[11px] text-center font-bold">
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="status-banner p-4 text-[11px] text-center font-bold">
                                     {error}
                                 </motion.div>
                             )}
@@ -120,7 +121,7 @@ const Login = () => {
                             </button>
 
                             <div className="text-center pt-2">
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-[var(--text-muted)]">
                                     New to Synco?{' '}
                                     <button type="button" onClick={() => navigate('/signup')} className="text-red-500 font-bold hover:underline transition-all">Create account</button>
                                 </p>

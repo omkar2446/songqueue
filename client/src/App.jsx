@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { SocketProvider } from './context/SocketContext';
@@ -48,12 +48,12 @@ function App() {
         <RoomProvider>
           <ToastProvider>
             <BrowserRouter>
-            <div className="min-h-screen bg-[#0c0b0f] relative overflow-hidden">
+              <div className="app-shell relative overflow-hidden">
                 <div ref={spotlightRef} className="mouse-spotlight hidden sm:block" />
                 <GlobalPlayerHost />
                 <AppRoutes />
-            </div>
-          </BrowserRouter>
+              </div>
+            </BrowserRouter>
           </ToastProvider>
         </RoomProvider>
       </SocketProvider>

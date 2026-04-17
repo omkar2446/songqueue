@@ -109,61 +109,7 @@ socketio = SocketIO(
 )
 CORS(app)
 
-# ── Database Initialization with Resilience ──
-with app.app_context():
-    retry_count = 0
-    max_retries = 5 if not is_sqlite_database() else 3
-    connected = False
-    
-    while not connected and retry_count < max_retries:
-        try:
-            db.create_all()
-            # Verify connectivity
-            db.session.execute(text('SELECT 1'))
-            connected = True
-            
-            print("\n" + "!"*60)
-            if is_sqlite_database():
-                print(f"DATABASE: MODE (SQLite - FILE: {db_path})")
-            else:
-                print("DATABASE: MODE (PostgreSQL - ENVIRONMENT CONFIGURED)")
-            if is_render_environment and is_sqlite_database():
-                print("RENDER NOTE: Mount a persistent disk at /opt/render/project/src/server/data")
-                print("             if you want songqueue.db to survive backend restarts.")
-            print("!"*60 + "\n")
-            
-        except Exception as e:
-            retry_count += 1
-            print(f"DB CONNECTION RETRY {retry_count}/{max_retries}: {str(e)[:40]}...")
-            if retry_count >= max_retries:
-                print("CRITICAL: Database connection failed after retries.")
-            import time
-            time.sleep(2)
 
-    # ── Live Migration Helper ──
-    try:
-        with db.engine.connect() as conn:
-            for stmt in [
-                "ALTER TABLE \"user\" ADD COLUMN is_pro BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE room ADD COLUMN current_song_id VARCHAR(36)",
-                "ALTER TABLE room ADD COLUMN is_playing BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE room ADD COLUMN playback_time FLOAT DEFAULT 0",
-                "ALTER TABLE room ADD COLUMN repeat_type INTEGER DEFAULT 0",
-                "ALTER TABLE room ADD COLUMN shuffle_mode BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE room ADD COLUMN created_at DATETIME",
-                "ALTER TABLE room ADD COLUMN expires_at DATETIME",
-                "ALTER TABLE playlist_song ADD COLUMN url TEXT",
-                "ALTER TABLE song ADD COLUMN url TEXT",
-                "ALTER TABLE playlist ADD COLUMN is_public BOOLEAN DEFAULT FALSE"
-            ]:
-                try: 
-                    conn.execute(text(stmt))
-                    conn.commit()
-                except Exception as ex:
-                    # Silently ignore 'column already exists'
-                    pass 
-    except Exception as e:
-        print(f"MIGRATION ERROR: {str(e)}")
 class Room(db.Model):
     id = db.Column(db.String(36), primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -403,6 +349,39 @@ def token_required(f):
     return decorated
 
 # 7. ── CORE ROUTES ──
+@app.before_request
+def ensure_db():
+    if not hasattr(app, '_db_initialized'):
+        try:
+            db.create_all()
+            app._db_initialized = True
+            logger.info("Database tables verified/created via before_request")
+        except Exception as e:
+            logger.error(f"Error checking/creating DB elements inline: {e}")
+
+@app.route('/test', methods=['GET'])
+def test_db():
+    try:
+        db.create_all()
+        uid = str(uuid.uuid4())
+        test_user = User(
+            id=uid,
+            name=f"Test_{uid[:5]}",
+            email=f"test_{uid}@example.com",
+            password_hash="testhash"
+        )
+        db.session.add(test_user)
+        db.session.commit()
+        return jsonify({
+            "status": "success", 
+            "message": "Connected to database and inserted test user.",
+            "test_user_id": uid
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Test route DB insert error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/')
 def health_check():
     return jsonify({
