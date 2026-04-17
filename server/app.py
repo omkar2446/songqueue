@@ -33,33 +33,31 @@ PRO_EMAILS = ['otambe655@gmail.com', 'SOlove1@gmail.com']
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey-change-this')
 
-# PERSISTENCE FIX: Ensure DB is in a stable location (Absolute path with forward slashes)
+# Store application data in one fixed SQLite file.
 base_dir = os.path.dirname(os.path.abspath(__file__))
 db_dir = os.path.join(base_dir, 'data')
-if not os.path.exists(db_dir):
-    os.makedirs(db_dir)
+upload_dir = os.path.join(base_dir, 'uploads')
+is_render_environment = any(os.getenv(key) for key in ['RENDER', 'RENDER_SERVICE_ID', 'RENDER_INSTANCE_ID'])
+
+os.makedirs(db_dir, exist_ok=True)
+os.makedirs(upload_dir, exist_ok=True)
 
 db_path = os.path.join(db_dir, 'songqueue.db').replace('\\', '/')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f"sqlite:///{db_path}")
-
-if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
-    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
-
-if not os.getenv('DATABASE_URL'):
-    print("\n" + "!"*60)
-    print("CRITICAL WARNING: USING TEMPORARY DATABASE")
-    print("Data WILL BE LOST when the server restarts or redeploys.")
-    print("To save playlists PERMANENTLY, you MUST:")
-    print("1. Create a FREE PostgreSQL Database (e.g., on Render or Neon)")
-    print("2. Add the 'DATABASE_URL' environment variable to your Host")
-    print("!"*60 + "\n")
-
-app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
+app.config['SQLITE_DB_PATH'] = db_path
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
+app.config['UPLOAD_FOLDER'] = upload_dir
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
-if not os.path.exists(app.config['UPLOAD_FOLDER']): os.makedirs(app.config['UPLOAD_FOLDER'])
-if not os.path.exists(app.instance_path): os.makedirs(app.instance_path)
+os.makedirs(app.instance_path, exist_ok=True)
 
 db = SQLAlchemy(app)
+
+def get_database_backend():
+    return 'sqlite'
+
+def get_storage_mode():
+    if is_render_environment:
+        return 'sqlite_file_on_host'
+    return 'sqlite_file'
 
 # 4. ── SocketIO Setup ──
 socketio = SocketIO(
@@ -85,10 +83,10 @@ with app.app_context():
             connected = True
             
             print("\n" + "!"*60)
-            if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI']:
-                print(f"DATABASE:  SUCCESS (PostgreSQL - PERMANENT STORAGE ACTIVE)")
-            else:
-                print(f"DATABASE:  MODE (SQLite - LOCAL/TEMPORARY)")
+            print(f"DATABASE:  MODE (SQLite - FILE: {db_path})")
+            if is_render_environment:
+                print("RENDER NOTE: Mount a persistent disk at /opt/render/project/src/server/data")
+                print("             if you want songqueue.db to survive backend restarts.")
             print("!"*60 + "\n")
             
         except Exception as e:
@@ -234,6 +232,9 @@ def health_check():
         "status": "online",
         "service": "SongQueue API",
         "runtime": "threading",
+        "database_backend": get_database_backend(),
+        "storage_mode": get_storage_mode(),
+        "database_path": app.config['SQLITE_DB_PATH'],
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     })
 
@@ -326,11 +327,12 @@ def get_playlists(user_id):
     public_playlists = Playlist.query.filter((Playlist.is_public == True) & (Playlist.user_id != user_id)).all()
     
     def serialize_p(p, is_own=True):
+        owner = db.session.get(User, p.user_id)
         return {
             'id': p.id,
             'name': p.name,
             'is_public': p.is_public,
-            'owner': User.query.get(p.user_id).name if not is_own else 'Me',
+            'owner': owner.name if owner and not is_own else 'Me',
             'count': PlaylistSong.query.filter_by(playlist_id=p.id).count()
         }
 
@@ -351,8 +353,12 @@ def toggle_playlist_visibility(user_id, pid):
 @app.route('/api/playlists', methods=['POST'])
 @token_required
 def create_playlist(user_id):
-    data = request.json
-    p = Playlist(id=str(uuid.uuid4()), name=data['name'], user_id=user_id)
+    data = request.get_json(silent=True) or {}
+    playlist_name = (data.get('name') or '').strip()
+    if not playlist_name:
+        return jsonify({'error': 'Playlist name is required'}), 400
+
+    p = Playlist(id=str(uuid.uuid4()), name=playlist_name, user_id=user_id)
     db.session.add(p)
     db.session.commit()
     return jsonify({'id': p.id, 'name': p.name})
@@ -360,14 +366,19 @@ def create_playlist(user_id):
 @app.route('/api/playlists/<pid>', methods=['GET'])
 @token_required
 def get_playlist_songs(user_id, pid):
-    p = Playlist.query.filter_by(id=pid, user_id=user_id).first()
-    if not p: return jsonify({'error': 'Not found'}), 404
-    songs = PlaylistSong.query.filter_by(playlist_id=pid).all()
+    p = db.session.get(Playlist, pid)
+    if not p:
+        return jsonify({'error': 'Not found'}), 404
+    if p.user_id != user_id and not p.is_public:
+        return jsonify({'error': 'Not found'}), 404
+
+    owner = db.session.get(User, p.user_id)
+    songs = PlaylistSong.query.filter_by(playlist_id=pid).order_by(PlaylistSong.created_at.asc()).all()
     return jsonify({
         'id': p.id,
         'name': p.name,
         'is_public': p.is_public,
-        'owner': User.query.get(p.user_id).name,
+        'owner': owner.name if owner else 'Unknown',
         'songs': [{
             'id': s.id, 'title': s.title, 'artist': s.artist, 
             'duration': s.duration, 'source': s.source, 
@@ -390,6 +401,18 @@ def add_to_playlist(user_id, pid):
         url=d.get('url', '')
     )
     db.session.add(s)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/playlists/<pid>', methods=['DELETE'])
+@token_required
+def delete_playlist(user_id, pid):
+    p = Playlist.query.filter_by(id=pid, user_id=user_id).first()
+    if not p:
+        return jsonify({'error': 'Not found'}), 404
+
+    PlaylistSong.query.filter_by(playlist_id=pid).delete()
+    db.session.delete(p)
     db.session.commit()
     return jsonify({'success': True})
 
@@ -443,21 +466,17 @@ def login():
         
         # AUTO-RECOVERY: If the DB was wiped but user knows their stuff, re-register them
         if not user:
-            # Check if we are in volatile SQLite mode
-            if "postgresql" not in app.config['SQLALCHEMY_DATABASE_URI']:
-                deterministic_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, email))
-                user = User(
-                    id=deterministic_id, 
-                    name=email.split('@')[0], 
-                    email=email, 
-                    password_hash=generate_password_hash(password),
-                    is_pro=(email in PRO_EMAILS)
-                )
-                db.session.add(user)
-                db.session.commit()
-                logger.info(f"Auto-recovered account for {email} with ID {user.id}")
-            else:
-                return jsonify({'error': 'Account not found. Please Sign Up.'}), 401
+            deterministic_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, email))
+            user = User(
+                id=deterministic_id, 
+                name=email.split('@')[0], 
+                email=email, 
+                password_hash=generate_password_hash(password),
+                is_pro=(email in PRO_EMAILS)
+            )
+            db.session.add(user)
+            db.session.commit()
+            logger.info(f"Auto-recovered account for {email} with ID {user.id}")
         
         if not check_password_hash(user.password_hash, password):
             return jsonify({'error': 'Invalid password'}), 401
@@ -500,7 +519,7 @@ def join_session():
             user.room_id = room_id
 
         db.session.commit()
-        return jsonify({'token': create_token(user.id), 'room_id': room_id, 'user': {'id': user.id, 'name': user.name, 'is_admin': user.is_admin, 'is_pro': user.is_pro}})
+        return jsonify({'token': create_token(user.id), 'room_id': room_id, 'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_admin': user.is_admin, 'is_pro': user.is_pro}})
     except Exception as e:
         logger.error(f"Join error: {str(e)}")
         logger.error(traceback.format_exc())

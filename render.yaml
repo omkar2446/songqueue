@@ -11,3 +11,9 @@ services:
         generateValue: true
       - key: PORT
         value: 5000
+    # To persist server/data/songqueue.db on Render, use a paid plan
+    # and attach a disk mounted at /opt/render/project/src/server/data.
+    # disk:
+    #   name: songqueue-data
+    #   mountPath: /opt/render/project/src/server/data
+    #   sizeGB: 1
