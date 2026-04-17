@@ -60,17 +60,6 @@ const TABS = [
         placeholder: 'Paste a Track, Album, or Playlist URL',
         hint: 'Auto-finds the best match on YouTube with EQ support',
     },
-    {
-        id: 'direct',
-        label: 'Direct Link',
-        icon: '🔗',
-        color: 'text-red-400',
-        bg: 'bg-red-500/20',
-        border: 'border-red-500/30',
-        activeBg: 'bg-red-500',
-        placeholder: 'Paste a direct URL to an MP3, WAV, or video file',
-        hint: 'Any public audio/video URL — served from any CDN or server',
-    },
 ];
 
 /* ── Main component ──────────────────────────────────────────── */
@@ -199,23 +188,7 @@ const SearchModal = ({ isOpen, onClose, defaultTab = 'youtube', onSelect }) => {
             }
         }
 
-        if (tab === 'direct') {
-            try {
-                new URL(val); // validate it's a URL
-                setPreview({
-                    source: 'direct',
-                    source_id: val,
-                    title: val.split('/').pop().split('?')[0] || 'Direct Audio',
-                    artist: new URL(val).hostname,
-                    thumbnail: '',
-                    url: val
-                });
-                setStatus('ok');
-            } catch {
-                setStatus('error');
-                setErrMsg('Not a valid URL. Make sure to include https://');
-            }
-        }
+
     };
 
     /* ── Add to queue ─────────────────────────────────────── */

@@ -579,7 +579,8 @@ def resolve_spotify():
         # description is usually: Artist Name · Song · 2023
         artist = desc.split('·')[0].strip() if '·' in desc else ''
         
-        query = f"ytsearch1:{title} {artist} audio"
+        # More precise search query
+        query = f"ytsearch5:{title} {artist}"
         
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -587,19 +588,49 @@ def resolve_spotify():
             'no_warnings': True,
             'extract_flat': True,
         }
+        
+        best_entry = None
+        max_score = -1
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(query, download=False)
             if 'entries' in info and len(info['entries']) > 0:
-                entry = info['entries'][0]
-                return jsonify({
-                    'success': True,
-                    'youtube_id': entry.get('id'),
-                    'title': title or entry.get('title'),
-                    'artist': artist or entry.get('uploader'),
-                    'thumbnail': f"https://img.youtube.com/vi/{entry.get('id')}/hqdefault.jpg",
-                    'duration': entry.get('duration', 0),
-                    '_is_collection': False
-                })
+                for entry in info['entries']:
+                    score = 0
+                    yt_title = entry.get('title', '').lower()
+                    yt_uploader = entry.get('uploader', '').lower()
+                    
+                    # 1. Boost for "Topic" channels (Official Auto-generated YouTube Music content)
+                    if 'topic' in yt_uploader: score += 10
+                    # 2. Boost for artist name in title/uploader
+                    if artist.lower() in yt_uploader: score += 5
+                    if artist.lower() in yt_title: score += 3
+                    
+                    # 3. Boost for "Official Audio" or "Official Video"
+                    if 'official' in yt_title: score += 2
+                    if 'audio' in yt_title: score += 1
+                    
+                    # 4. Strict Penalty for undesirable types (unless specified in original title)
+                    unwanted = ['cover', 'karaoke', 'live', 'remix', 'tribute']
+                    for term in unwanted:
+                        if term in yt_title and term not in title.lower():
+                            score -= 15
+                    
+                    if score > max_score:
+                        max_score = score
+                        best_entry = entry
+                
+                if best_entry:
+                    return jsonify({
+                        'success': True,
+                        'youtube_id': best_entry.get('id'),
+                        'title': title or best_entry.get('title'),
+                        'artist': artist or best_entry.get('uploader'),
+                        'thumbnail': f"https://img.youtube.com/vi/{best_entry.get('id')}/hqdefault.jpg",
+                        'duration': best_entry.get('duration', 0),
+                        '_is_collection': False
+                    })
+                    
         return jsonify({'error': 'Not found on YouTube'}), 404
         
     except Exception as e:
