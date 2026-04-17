@@ -13,7 +13,7 @@ from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text, desc
+from sqlalchemy import text, desc, inspect
 from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
@@ -36,7 +36,7 @@ PRO_EMAILS = ['otambe655@gmail.com', 'SOlove1@gmail.com']
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey-change-this')
 
-# Store application data in one fixed SQLite file.
+# Store application data locally when SQLite is active.
 base_dir = os.path.dirname(os.path.abspath(__file__))
 db_dir = os.path.join(base_dir, 'data')
 upload_dir = os.path.join(base_dir, 'uploads')
@@ -49,20 +49,55 @@ db_path = os.path.join(db_dir, 'songqueue.db').replace('\\', '/')
 excel_path = os.path.join(db_dir, 'songqueue.xlsx').replace('\\', '/')
 json_path = os.path.join(db_dir, 'songqueue.json').replace('\\', '/')
 app.config['SQLITE_DB_PATH'] = db_path
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
 app.config['UPLOAD_FOLDER'] = upload_dir
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 os.makedirs(app.instance_path, exist_ok=True)
+
+def normalize_database_url(database_url):
+    if database_url and database_url.startswith('postgres://'):
+        return database_url.replace('postgres://', 'postgresql://', 1)
+    return database_url
+
+def get_configured_database_uri():
+    raw_database_url = (
+        os.getenv('DATABASE_URL')
+        or os.getenv('RENDER_DATABASE_URL')
+        or os.getenv('RENDER_EXTERNAL_DATABASE_URL')
+        or os.getenv('SQLALCHEMY_DATABASE_URI')
+    )
+    normalized_database_url = normalize_database_url(raw_database_url)
+    if normalized_database_url:
+        return normalized_database_url
+    return f"sqlite:///{db_path}"
+
+app.config['SQLALCHEMY_DATABASE_URI'] = get_configured_database_uri()
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True
+}
 
 db = SQLAlchemy(app)
 
 def get_database_backend():
+    database_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if database_uri.startswith('postgresql://'):
+        return 'postgresql'
     return 'sqlite'
 
+def is_sqlite_database():
+    return get_database_backend() == 'sqlite'
+
 def get_storage_mode():
+    if not is_sqlite_database():
+        return 'managed_postgres'
     if is_render_environment:
         return 'sqlite_file_on_host'
     return 'sqlite_file'
+
+def get_database_path():
+    if is_sqlite_database():
+        return app.config['SQLITE_DB_PATH']
+    return None
 
 # 4. ── SocketIO Setup ──
 socketio = SocketIO(
@@ -77,7 +112,7 @@ CORS(app)
 # ── Database Initialization with Resilience ──
 with app.app_context():
     retry_count = 0
-    max_retries = 3
+    max_retries = 5 if not is_sqlite_database() else 3
     connected = False
     
     while not connected and retry_count < max_retries:
@@ -88,8 +123,11 @@ with app.app_context():
             connected = True
             
             print("\n" + "!"*60)
-            print(f"DATABASE:  MODE (SQLite - FILE: {db_path})")
-            if is_render_environment:
+            if is_sqlite_database():
+                print(f"DATABASE: MODE (SQLite - FILE: {db_path})")
+            else:
+                print("DATABASE: MODE (PostgreSQL - ENVIRONMENT CONFIGURED)")
+            if is_render_environment and is_sqlite_database():
                 print("RENDER NOTE: Mount a persistent disk at /opt/render/project/src/server/data")
                 print("             if you want songqueue.db to survive backend restarts.")
             print("!"*60 + "\n")
@@ -184,38 +222,121 @@ class Song(db.Model):
     position = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
-with app.app_context():
-    db.create_all()
-    # Live Migration Helper (fixes 500 errors on existing Render DBs)
-    from sqlalchemy import text
+SCHEMA_MIGRATIONS = {
+    'user': [
+        ('is_pro', 'BOOLEAN DEFAULT FALSE'),
+        ('is_admin', 'BOOLEAN DEFAULT FALSE'),
+        ('room_id', 'VARCHAR(36)'),
+        ('password_hash', 'VARCHAR(255)')
+    ],
+    'room': [
+        ('current_song_id', 'VARCHAR(36)'),
+        ('is_playing', 'BOOLEAN DEFAULT FALSE'),
+        ('playback_time', 'FLOAT DEFAULT 0'),
+        ('repeat_type', 'INTEGER DEFAULT 0'),
+        ('shuffle_mode', 'BOOLEAN DEFAULT FALSE'),
+        ('created_at', 'TIMESTAMP'),
+        ('expires_at', 'TIMESTAMP'),
+        ('name', 'VARCHAR(100)'),
+        ('owner_id', 'VARCHAR(36)'),
+        ('last_updated_at', 'TIMESTAMP')
+    ],
+    'playlist_song': [
+        ('url', 'TEXT')
+    ],
+    'song': [
+        ('url', 'TEXT'),
+        ('position', 'INTEGER DEFAULT 0'),
+        ('votes', 'INTEGER DEFAULT 0'),
+        ('added_by_name', 'VARCHAR(100)')
+    ],
+    'playlist': [
+        ('is_public', 'BOOLEAN DEFAULT FALSE')
+    ]
+}
+
+def run_schema_migrations():
+    inspector = inspect(db.engine)
+    existing_tables = set(inspector.get_table_names())
+
     with db.engine.connect() as conn:
-        for stmt in [
-            "ALTER TABLE user ADD COLUMN is_pro BOOLEAN DEFAULT 0",
-            "ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0",
-            "ALTER TABLE user ADD COLUMN room_id VARCHAR(36)",
-            "ALTER TABLE user ADD COLUMN password_hash VARCHAR(255)",
-            "ALTER TABLE room ADD COLUMN name VARCHAR(100)",
-            "ALTER TABLE room ADD COLUMN owner_id VARCHAR(36)",
-            "ALTER TABLE room ADD COLUMN last_updated_at DATETIME",
-            "ALTER TABLE room ADD COLUMN repeat_type INTEGER DEFAULT 0",
-            "ALTER TABLE room ADD COLUMN shuffle_mode BOOLEAN DEFAULT 0",
-            "ALTER TABLE song ADD COLUMN position INTEGER DEFAULT 0",
-            "ALTER TABLE song ADD COLUMN votes INTEGER DEFAULT 0",
-            "ALTER TABLE song ADD COLUMN added_by_name VARCHAR(100)"
-        ]:
-            try:
-                conn.execute(text(stmt))
-                conn.commit()
-                logger.info(f"Migration Success: {stmt}")
-            except Exception: pass 
+        for table_name, columns in SCHEMA_MIGRATIONS.items():
+            if table_name not in existing_tables:
+                continue
+
+            existing_columns = {column['name'] for column in inspector.get_columns(table_name)}
+            quoted_table_name = f'"{table_name}"'
+
+            for column_name, column_definition in columns:
+                if column_name in existing_columns:
+                    continue
+
+                stmt = text(
+                    f'ALTER TABLE {quoted_table_name} ADD COLUMN {column_name} {column_definition}'
+                )
+                try:
+                    conn.execute(stmt)
+                    conn.commit()
+                    logger.info(
+                        "Migration Success: ALTER TABLE %s ADD COLUMN %s %s",
+                        table_name,
+                        column_name,
+                        column_definition
+                    )
+                except Exception as exc:
+                    conn.rollback()
+                    logger.warning(
+                        "Migration skipped for %s.%s: %s",
+                        table_name,
+                        column_name,
+                        str(exc)
+                    )
+
+def initialize_database():
+    retry_count = 0
+    max_retries = 5 if not is_sqlite_database() else 3
+
+    while retry_count < max_retries:
+        try:
+            db.create_all()
+            db.session.execute(text('SELECT 1'))
+            db.session.commit()
+            run_schema_migrations()
+
+            logger.info("Database ready using %s", get_database_backend())
+            if is_sqlite_database():
+                logger.info("SQLite path: %s", db_path)
+            else:
+                logger.info("PostgreSQL connection configured from environment.")
+            return
+        except Exception as exc:
+            db.session.rollback()
+            retry_count += 1
+            logger.warning(
+                "DB connection retry %s/%s: %s",
+                retry_count,
+                max_retries,
+                str(exc)[:120]
+            )
+            if retry_count >= max_retries:
+                logger.error("Critical: database connection failed after retries.")
+                raise
+            time.sleep(2)
+
+with app.app_context():
+    initialize_database()
 
 # 5.5 ── Automated Data Synchronizer ──
 last_backup_mtime = 0
 def sync_database_backups():
+    if not is_sqlite_database():
+        logger.info("Skipping backup sync because the active database backend is PostgreSQL.")
+        return False
+
     try:
         import sqlite3, json
         if not os.path.exists(db_path):
-            return
+            return False
         conn = sqlite3.connect(db_path)
         tables = pd.read_sql("SELECT name FROM sqlite_master WHERE type='table'", conn)
         
@@ -231,11 +352,19 @@ def sync_database_backups():
             
         conn.close()
         logger.info(f"Database synchronized! Copies updated: Excel & JSON")
+        return True
     except Exception as e:
         logger.error(f"Error during backup sync: {e}")
+        return False
+
+def trigger_database_sync():
+    if is_sqlite_database():
+        threading.Thread(target=sync_database_backups, daemon=True).start()
 
 def auto_db_backup():
     global last_backup_mtime
+    if not is_sqlite_database():
+        return
     time.sleep(5) # Let server boot up
     while True:
         try:
@@ -248,8 +377,9 @@ def auto_db_backup():
             pass
         time.sleep(3) # Continuously check for changes every 3 seconds
 
-backup_thread = threading.Thread(target=auto_db_backup, daemon=True)
-backup_thread.start()
+if is_sqlite_database():
+    backup_thread = threading.Thread(target=auto_db_backup, daemon=True)
+    backup_thread.start()
 
 # 6. ── Auth Helpers ──
 def create_token(user_id):
@@ -281,14 +411,20 @@ def health_check():
         "runtime": "threading",
         "database_backend": get_database_backend(),
         "storage_mode": get_storage_mode(),
-        "database_path": app.config['SQLITE_DB_PATH'],
-        "excel_backup_path": excel_path,
-        "json_backup_path": json_path,
+        "database_path": get_database_path(),
+        "excel_backup_path": excel_path if is_sqlite_database() else None,
+        "json_backup_path": json_path if is_sqlite_database() else None,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     })
 
 @app.route('/api/admin/export-data')
 def manual_export_endpoint():
+    if not is_sqlite_database():
+        return jsonify({
+            "success": False,
+            "message": "Manual export is only available when the app is using SQLite.",
+            "database_backend": get_database_backend()
+        }), 400
     sync_database_backups()
     return jsonify({"success": True, "excel": excel_path, "json": json_path})
 
@@ -505,7 +641,7 @@ def signup():
             db.session.add(user)
         
         db.session.commit()
-        threading.Thread(target=sync_database_backups, daemon=True).start()
+        trigger_database_sync()
         return jsonify({'token': create_token(user.id), 'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_pro': user.is_pro}})
     except Exception as e:
         logger.error(f"Signup error: {str(e)}")
@@ -531,7 +667,7 @@ def login():
             )
             db.session.add(user)
             db.session.commit()
-            threading.Thread(target=sync_database_backups, daemon=True).start()
+            trigger_database_sync()
             logger.info(f"Auto-recovered account for {email} with ID {user.id}")
         
         if not check_password_hash(user.password_hash, password):
@@ -575,7 +711,7 @@ def join_session():
             user.room_id = room_id
 
         db.session.commit()
-        threading.Thread(target=sync_database_backups, daemon=True).start()
+        trigger_database_sync()
         return jsonify({'token': create_token(user.id), 'room_id': room_id, 'user': {'id': user.id, 'name': user.name, 'email': user.email, 'is_admin': user.is_admin, 'is_pro': user.is_pro}})
     except Exception as e:
         logger.error(f"Join error: {str(e)}")
