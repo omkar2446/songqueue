@@ -165,7 +165,16 @@ const GlobalPlayerHost = () => {
                         onEnded={() => socket?.emit('playback_control', { room_id: room?.id, action: 'next' })}
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}
-                        onError={() => { if (sourceUrl) setPlaybackError(true); }}
+                        onError={() => { 
+                            if (sourceUrl) {
+                                if (isYoutube) {
+                                    setShowVideo(true);
+                                    setPlaybackError(false);
+                                } else {
+                                    setPlaybackError(true);
+                                }
+                            } 
+                        }}
                     />
                 ) : null}
             </div>
