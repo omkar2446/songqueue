@@ -998,8 +998,8 @@ def handle_playback(data):
     emit('playback_update', data, room=room_id, include_self=False)
     if curr_action in ('next', 'prev', 'set_repeat', 'set_shuffle'):
         s = db.session.get(Song, room.current_song_id) if room.current_song_id else None
-        song_data = { 'id': s.id, 'title': s.title, 'artist': s.artist, 'source': s.source, 'source_id': s.source_id, 'thumbnail': s.thumbnail } if s else None
-        emit('room_state_update', { 'current_song_id': room.current_song_id, 'current_song': song_data, 'repeat_type': room.repeat_type, 'shuffle_mode': room.shuffle_mode }, room=room_id)
+        song_data = { 'id': s.id, 'title': s.title, 'artist': s.artist, 'source': s.source, 'source_id': s.source_id, 'thumbnail': s.thumbnail, 'room_id': room_id } if s else None
+        emit('room_state_update', { 'current_song_id': room.current_song_id, 'current_song': song_data, 'repeat_type': room.repeat_type, 'shuffle_mode': room.shuffle_mode }, room=room_id, include_self=True)
 
 @socketio.on('add_to_queue')
 def add_to_queue(data):
