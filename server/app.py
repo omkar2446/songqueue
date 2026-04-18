@@ -503,17 +503,22 @@ def stream_yt(video_id):
             'format': 'bestaudio/best',
             'quiet': True,
             'no_warnings': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'logtostderr': False,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'referer': 'https://www.youtube.com/',
         }
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                if not info or 'url' not in info:
+                    raise Exception("No streaming URL found in YouTube response")
                 cached_url = info['url']
-                # Cache for 1 hour (YouTube URLs usually last a few hours)
                 yt_url_cache[video_id] = (cached_url, now + datetime.timedelta(hours=1))
         except Exception as e:
-            logger.error(f"YouTube Extract Error: {str(e)}")
-            return jsonify({'error': 'Failed to resolve YouTube audio'}), 500
+            logger.error(f"YouTube Extract Error for {video_id}: {str(e)}")
+            return jsonify({'error': f'YouTube Resolution Failed: {str(e)}'}), 500
 
     headers = {}
     if 'Range' in request.headers:
@@ -523,6 +528,10 @@ def stream_yt(video_id):
         # Use HEAD if request is HEAD
         if request.method == 'HEAD':
             r = requests.head(cached_url, headers=headers, timeout=10)
+            if r.status_code == 403:
+                # Cache might be stale, clear and retry once
+                if video_id in yt_url_cache: del yt_url_cache[video_id]
+                return get_yt_stream(video_id)
             resp = Response(status=r.status_code)
             for k, v in r.headers.items():
                 if k.lower() in ['content-type', 'content-length', 'accept-ranges', 'content-range']:
@@ -530,7 +539,15 @@ def stream_yt(video_id):
             resp.headers['Access-Control-Allow-Origin'] = '*'
             return resp
 
-        r = requests.get(cached_url, headers=headers, stream=True, timeout=10)
+        r = requests.get(cached_url, headers=headers, stream=True, timeout=15)
+        
+        if r.status_code == 403:
+             # URL likely expired or session blocked
+             logger.warning(f"YouTube 403 for {video_id}, clearing cache and retrying...")
+             if video_id in yt_url_cache: del yt_url_cache[video_id]
+             # To avoid infinite loops, we don't call recursively here, 
+             # but instead return 500 with a specific message so frontend can fallback.
+             return jsonify({'error': 'YouTube proxy session expired. Please refresh.'}), 500
         
         def generate():
             try:
@@ -764,9 +781,12 @@ def add_to_playlist(user_id, pid):
     d = request.json
     s = PlaylistSong(
         id=str(uuid.uuid4()), playlist_id=pid,
-        title=d['title'], artist=d.get('artist'),
-        duration=d.get('duration'), source=d['source'],
-        source_id=d['source_id'], thumbnail=d.get('thumbnail'),
+        title=d.get('title', 'Unknown'), 
+        artist=d.get('artist', 'Unknown'),
+        duration=d.get('duration', 0), 
+        source=d.get('source', 'unknown'),
+        source_id=d.get('source_id', ''), 
+        thumbnail=d.get('thumbnail', ''),
         url=d.get('url', '')
     )
     db.session.add(s)
@@ -959,7 +979,18 @@ def upload_file(room_id):
         
         db.session.commit()
         socketio.emit('queue_updated', {'room_id': room_id}, room=room_id)
-        return jsonify({'message': 'Uploaded', 'song': { 'id': song.id, 'title': song.title, 'source': 'upload' }})
+        return jsonify({
+            'message': 'Uploaded', 
+            'song': { 
+                'id': song.id, 
+                'title': song.title, 
+                'artist': song.artist,
+                'source': song.source,
+                'source_id': song.source_id,
+                'thumbnail': song.thumbnail,
+                'url': song.url
+            }
+        })
     return jsonify({'error': 'Invalid file type'}), 400
 
 @app.route('/api/room/<room_id>/add', methods=['POST'])
