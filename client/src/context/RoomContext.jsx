@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import { useSocket } from './SocketContext';
 import { useAudioEngine } from '../hooks/useAudioEngine';
