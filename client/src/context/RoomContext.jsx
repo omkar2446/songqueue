@@ -104,9 +104,12 @@ export const RoomProvider = ({ children }) => {
                 // If the previous song switched to video due to an error, 
                 // we'll try returning to Audio EQ mode for the new song unless user manually chose Video.
                 if (isPro && data.current_song.source === 'youtube') {
-                    // We only auto-disable video if it wasn't a manual choice
-                    // (This is a bit hard to track perfectly, but let's reset it periodically)
-                    setShowVideo(false);
+                    // CRITICAL: Only auto-disable if we haven't HAD a fallback error recently
+                    // This prevents the 'Audio -> 500 -> Video -> room_state -> Audio' loop
+                    const lastErr = window._lastPlaybackErrorTime || 0;
+                    if (Date.now() - lastErr > 30000) {
+                        setShowVideo(false);
+                    }
                 }
             } else if (data.current_song_id !== undefined) {
                 fetchRoomState(roomId);

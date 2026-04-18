@@ -182,6 +182,7 @@ const GlobalPlayerHost = () => {
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}
                         onError={() => { 
+                            window._lastPlaybackErrorTime = Date.now();
                             if (sourceUrl) {
                                 if (isYoutube) {
                                     setShowVideo(true);
@@ -199,7 +200,6 @@ const GlobalPlayerHost = () => {
             {isYoutube && showVideo && (
                 <div id="global-yt-portal-target" className="fixed pointer-events-none opacity-0 invisible -z-50 overflow-hidden rounded-3xl" style={{ backgroundColor: '#000' }}>
                      <YouTube 
-                        key={`yt-${currentSong.source_id}`}
                         videoId={currentSong.source_id} 
                         opts={{ playerVars: { autoplay: 1, controls: 1, origin: window.location.origin, playsinline: 1, rel: 0, modestbranding: 1 } }} 
                         onReady={onYtReady} 
@@ -223,11 +223,12 @@ const GlobalPlayerHost = () => {
                                 // Keep playAttemptStart going if buffering
                             }
                         }} 
-                        onError={() => {
+                        onError={(e) => {
+                            window._lastPlaybackErrorTime = Date.now();
                             setPlaybackError(true);
                             // If video fails, maybe it's restricted, try skipping after a bit
                             setTimeout(() => {
-                                if (playbackError) socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
+                                socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
                             }, 3000);
                         }} 
                         className="w-full h-full"

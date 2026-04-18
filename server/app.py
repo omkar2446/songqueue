@@ -512,19 +512,26 @@ def stream_yt(video_id):
             'nocheckcertificate': True,
             'ignoreerrors': False,
             'logtostderr': False,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'referer': 'https://www.youtube.com/',
+            'socket_timeout': 10,
         }
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                # Retry once if it fails
+                try:
+                    info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                except Exception:
+                    time.sleep(1)
+                    info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+
                 if not info or 'url' not in info:
                     raise Exception("No streaming URL found in YouTube response")
                 cached_url = info['url']
                 yt_url_cache[video_id] = (cached_url, now + datetime.timedelta(hours=1))
         except Exception as e:
             logger.error(f"YouTube Extract Error for {video_id}: {str(e)}")
-            return jsonify({'error': f'YouTube Resolution Failed: {str(e)}'}), 500
+            return jsonify({'error': f'YouTube Resolution Failed: {str(e)}', 'video_id': video_id}), 500
 
     headers = {}
     if 'Range' in request.headers:
@@ -546,15 +553,17 @@ def stream_yt(video_id):
             return resp
 
         proxy_headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Referer': 'https://www.youtube.com/',
-            'Range': headers.get('Range', 'bytes=0-')
+            'Range': headers.get('Range', 'bytes=0-'),
+            'Accept': '*/*',
+            'Connection': 'keep-alive',
         }
-        r = requests.get(cached_url, headers=proxy_headers, stream=True, timeout=15)
+        r = requests.get(cached_url, headers=proxy_headers, stream=True, timeout=12)
         
         if r.status_code == 403:
              # URL likely expired or session blocked
-             logger.warning(f"YouTube 403 for {video_id}, clearing cache and retrying...")
+             logger.warning(f"YouTube 403 for {video_id}, clearing cache...")
              if video_id in yt_url_cache: del yt_url_cache[video_id]
              # To avoid infinite loops, we don't call recursively here, 
              # but instead return 500 with a specific message so frontend can fallback.
