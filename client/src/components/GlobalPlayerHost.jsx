@@ -197,15 +197,24 @@ const GlobalPlayerHost = () => {
             </div>
 
             {/* YouTube IFrame — Positioned via CSS 'teleport' from MusicPlayer */}
-            {isYoutube && (
+            {/* We keep this mounted once it's rendered to prevent API crashes during song changes */}
+            {(isYoutube || ytRef.current) && (
                 <div 
                     id="global-yt-portal-target" 
-                    className={`fixed overflow-hidden rounded-3xl transition-opacity duration-300 ${showVideo ? 'opacity-100 z-40' : 'pointer-events-none opacity-0 invisible -z-50'}`} 
+                    className={`fixed overflow-hidden rounded-3xl transition-opacity duration-300 ${(showVideo && isYoutube) ? 'opacity-100 z-40' : 'pointer-events-none opacity-0 invisible -z-50'}`} 
                     style={{ backgroundColor: '#000' }}
                 >
                      <YouTube 
-                        videoId={currentSong.source_id} 
-                        opts={{ playerVars: { autoplay: 1, controls: 1, origin: window.location.origin, playsinline: 1, rel: 0, modestbranding: 1 } }} 
+                        videoId={isYoutube ? currentSong.source_id : ''} 
+                        opts={{ playerVars: { 
+                            autoplay: 1, 
+                            controls: 1, 
+                            origin: window.location.origin, 
+                            host: 'https://www.youtube.com',
+                            playsinline: 1, 
+                            rel: 0, 
+                            modestbranding: 1 
+                        } }} 
                         onReady={onYtReady} 
                         onStateChange={(e) => {
                             if (!e || !e.target) return;
@@ -219,14 +228,15 @@ const GlobalPlayerHost = () => {
                                 }
                             }
                             if (e.data === YT.PLAYING) {
-                                if (showVideo) setIsPlaying(true);
+                                if (showVideo && isYoutube) setIsPlaying(true);
                                 playAttemptStart.current = 0; // Loaded!
                             }
                             if (e.data === YT.PAUSED) {
-                                if (showVideo) setIsPlaying(false);
+                                if (showVideo && isYoutube) setIsPlaying(false);
                             }
                         }} 
                         onError={(e) => {
+                            if (!isYoutube) return;
                             window._lastPlaybackErrorTime = Date.now();
                             setPlaybackError(true);
                             setTimeout(() => {

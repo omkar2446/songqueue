@@ -519,6 +519,8 @@ def stream_yt(video_id):
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'referer': 'https://www.youtube.com/',
             'socket_timeout': 10,
+            'source_address': '0.0.0.0', # Force IPv4
+            'geo_bypass': True,
         }
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
