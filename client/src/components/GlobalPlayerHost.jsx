@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, memo } from 'react';
+import React, { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import YouTube from 'react-youtube';
 import { useRoom } from '../context/RoomContext';
 import { useSocket } from '../context/SocketContext';
@@ -28,6 +28,12 @@ const GlobalPlayerHost = () => {
     const pollInterval = useRef(null);
     const hasSentAutoNext = useRef(false);
     const playAttemptStart = useRef(0);
+    const isPlayingRef = useRef(isPlaying);
+
+    // Sync ref with state
+    useEffect(() => {
+        isPlayingRef.current = isPlaying;
+    }, [isPlaying]);
 
     // Reset auto-next flag when song changes
     useEffect(() => {
@@ -131,7 +137,7 @@ const GlobalPlayerHost = () => {
     }, [volume, normalizeVolume, isYoutube, showVideo, isInternalReady]);
 
     // ── Handlers ───────────────────────────────────────
-    const onYtReady = (e) => {
+    const onYtReady = useCallback((e) => {
         ytRef.current = e.target;
         setIsInternalReady(true);
         setPlaybackError(false);
@@ -139,20 +145,61 @@ const GlobalPlayerHost = () => {
         setDuration(e.target.getDuration());
         resumeAudio();
         if (isPlaying) e.target.playVideo();
-    };
+    }, [isPlaying, resumeAudio, setDuration, setPlaybackError, setYtPlayer]);
 
-    const onNativeLoaded = (e) => {
+    const onNativeLoaded = useCallback((e) => {
         setIsInternalReady(true);
         setPlaybackError(false);
         setDuration(e.target.duration);
         resumeAudio(); 
         if (isPlaying) e.target.play().catch(()=>{});
-    };
+    }, [isPlaying, resumeAudio, setDuration, setPlaybackError]);
+
+    const onYtStateChange = useCallback((e) => {
+        if (!e || !e.target) return;
+        const YT = window.YT?.PlayerState;
+        if (!YT) return;
+        
+        if (e.data === YT.ENDED) {
+            if (!hasSentAutoNext.current) {
+                hasSentAutoNext.current = true;
+                socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
+            }
+        }
+        if (e.data === YT.PLAYING) {
+            if (showVideo && isYoutube && !isPlayingRef.current) setIsPlaying(true);
+            playAttemptStart.current = 0; // Loaded!
+        }
+        if (e.data === YT.PAUSED) {
+            if (showVideo && isYoutube && isPlayingRef.current) setIsPlaying(false);
+        }
+    }, [isYoutube, room?.id, setIsPlaying, showVideo, socket]);
+
+    const onYtError = useCallback((e) => {
+        if (!isYoutube) return;
+        window._lastPlaybackErrorTime = Date.now();
+        setPlaybackError(true);
+        setTimeout(() => {
+            socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
+        }, 3000);
+    }, [isYoutube, room?.id, setPlaybackError, socket]);
+
+    const ytOpts = useMemo(() => ({
+        playerVars: { 
+            autoplay: 1, 
+            controls: 1, 
+            origin: window.location.origin, 
+            host: 'https://www.youtube.com',
+            playsinline: 1, 
+            rel: 0, 
+            modestbranding: 1 
+        }
+    }), []);
 
     useEffect(() => {
         setIsInternalReady(false);
         setPlaybackError(false);
-    }, [currentSong?.id, showVideo]);
+    }, [currentSong?.id]); // Only reset on actual song change, not on showVideo toggle
 
     if (!currentSong) return null;
 
@@ -206,43 +253,10 @@ const GlobalPlayerHost = () => {
                 >
                      <YouTube 
                         videoId={isYoutube ? currentSong.source_id : ''} 
-                        opts={{ playerVars: { 
-                            autoplay: 1, 
-                            controls: 1, 
-                            origin: window.location.origin, 
-                            host: 'https://www.youtube.com',
-                            playsinline: 1, 
-                            rel: 0, 
-                            modestbranding: 1 
-                        } }} 
+                        opts={ytOpts} 
                         onReady={onYtReady} 
-                        onStateChange={(e) => {
-                            if (!e || !e.target) return;
-                            const YT = window.YT?.PlayerState;
-                            if (!YT) return;
-                            
-                            if (e.data === YT.ENDED) {
-                                if (!hasSentAutoNext.current) {
-                                    hasSentAutoNext.current = true;
-                                    socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
-                                }
-                            }
-                            if (e.data === YT.PLAYING) {
-                                if (showVideo && isYoutube) setIsPlaying(true);
-                                playAttemptStart.current = 0; // Loaded!
-                            }
-                            if (e.data === YT.PAUSED) {
-                                if (showVideo && isYoutube) setIsPlaying(false);
-                            }
-                        }} 
-                        onError={(e) => {
-                            if (!isYoutube) return;
-                            window._lastPlaybackErrorTime = Date.now();
-                            setPlaybackError(true);
-                            setTimeout(() => {
-                                socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
-                            }, 3000);
-                        }} 
+                        onStateChange={onYtStateChange} 
+                        onError={onYtError} 
                         className="w-full h-full"
                         iframeClassName="w-full h-full"
                     />
