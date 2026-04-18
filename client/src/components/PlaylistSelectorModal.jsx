@@ -21,7 +21,7 @@ const PlaylistSelectorModal = ({ isOpen, onClose, song }) => {
         setLoading(true);
         try {
             const res = await api.get('/playlists');
-            setPlaylists(res.data);
+            setPlaylists(res.data.my_playlists || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
