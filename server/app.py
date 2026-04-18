@@ -11,7 +11,7 @@ import pandas as pd
 import re
 from functools import wraps
 
-from flask import Flask, request, jsonify, send_from_directory, Response
+from flask import Flask, request, jsonify, send_from_directory, Response, make_response
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, desc, inspect
@@ -476,7 +476,13 @@ def manual_export_endpoint():
 
 @app.route('/api/uploads/<path:filename>')
 def serve_upload(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    resp = make_response(send_from_directory(app.config['UPLOAD_FOLDER'], filename))
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    resp.headers['Access-Control-Allow-Headers'] = 'Range, Content-Type'
+    # Allow range requests for audio scrubbing
+    resp.headers['Accept-Ranges'] = 'bytes'
+    return resp
 
 # In-memory cache for YouTube URLs to speed up seeking and range requests
 yt_url_cache = {} # video_id -> (url, expires_at)
