@@ -254,7 +254,7 @@ const Playlists = () => {
                                     <p className="text-sm text-gray-500 font-medium italic">No playlists yet</p>
                                 </div>
                             ) : (
-                                myPlaylists.map((p, i) => (
+                                (myPlaylists || []).map((p, i) => (
                                     <motion.div
                                         key={p.id || i}
                                         whileHover={{ x: 4 }}
@@ -300,7 +300,7 @@ const Playlists = () => {
                                     <Search size={12} /> Community Discovery
                                 </h3>
                                 <div className="space-y-2">
-                                    {publicPlaylists.map((p, i) => (
+                                    {(publicPlaylists || []).map((p, i) => (
                                         <motion.div
                                             key={p.id}
                                             whileHover={{ x: 4 }}

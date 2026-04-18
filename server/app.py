@@ -827,6 +827,23 @@ def signup():
         logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/auth/update_pro', methods=['POST'])
+@token_required
+def update_pro_status(user_id):
+    try:
+        data = request.json
+        status = data.get('is_pro', False)
+        user = db.session.get(User, user_id)
+        if user:
+            user.is_pro = status
+            db.session.commit()
+            trigger_database_sync()
+            return jsonify({'success': True, 'is_pro': user.is_pro})
+        return jsonify({'error': 'User not found'}), 404
+    except Exception as e:
+        logger.error(f"Update pro error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     try:

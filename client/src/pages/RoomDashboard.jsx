@@ -140,7 +140,7 @@ const RoomDashboard = () => {
                     </button>
 
                     <div className="hidden md:flex -space-x-2">
-                        {users?.slice(0, 3).map((u, i) => (
+                        {(users || []).slice(0, 3).map((u, i) => (
                             <div key={u.id || `u-${i}`} className="w-9 h-9 rounded-full bg-gradient-to-tr from-red-600 to-rose-600 border-2 border-[#0c0b0f] flex items-center justify-center text-[10px] font-black uppercase shadow-xl" title={u.name}>
                                 {u.name.substring(0, 2)}
                             </div>
@@ -252,7 +252,7 @@ const RoomDashboard = () => {
                                         <p className="text-[10px] font-black uppercase text-gray-600 tracking-[0.2em] italic">Empty Queue</p>
                                     </div>
                                 ) : (
-                                    queue.map((song, i) => (
+                                    (queue || []).map((song, i) => (
                                         <motion.div
                                             key={song.id || `s-${i}`}
                                             initial={{ opacity: 0, scale: 0.95 }}
