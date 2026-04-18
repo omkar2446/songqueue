@@ -197,8 +197,12 @@ const GlobalPlayerHost = () => {
             </div>
 
             {/* YouTube IFrame — Positioned via CSS 'teleport' from MusicPlayer */}
-            {isYoutube && showVideo && (
-                <div id="global-yt-portal-target" className="fixed pointer-events-none opacity-0 invisible -z-50 overflow-hidden rounded-3xl" style={{ backgroundColor: '#000' }}>
+            {isYoutube && (
+                <div 
+                    id="global-yt-portal-target" 
+                    className={`fixed overflow-hidden rounded-3xl transition-opacity duration-300 ${showVideo ? 'opacity-100 z-40' : 'pointer-events-none opacity-0 invisible -z-50'}`} 
+                    style={{ backgroundColor: '#000' }}
+                >
                      <YouTube 
                         videoId={currentSong.source_id} 
                         opts={{ playerVars: { autoplay: 1, controls: 1, origin: window.location.origin, playsinline: 1, rel: 0, modestbranding: 1 } }} 
@@ -215,18 +219,16 @@ const GlobalPlayerHost = () => {
                                 }
                             }
                             if (e.data === YT.PLAYING) {
-                                setIsPlaying(true);
+                                if (showVideo) setIsPlaying(true);
                                 playAttemptStart.current = 0; // Loaded!
                             }
-                            if (e.data === YT.PAUSED) setIsPlaying(false);
-                            if (e.data === YT.BUFFERING) {
-                                // Keep playAttemptStart going if buffering
+                            if (e.data === YT.PAUSED) {
+                                if (showVideo) setIsPlaying(false);
                             }
                         }} 
                         onError={(e) => {
                             window._lastPlaybackErrorTime = Date.now();
                             setPlaybackError(true);
-                            // If video fails, maybe it's restricted, try skipping after a bit
                             setTimeout(() => {
                                 socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
                             }, 3000);

@@ -123,7 +123,15 @@ socketio = SocketIO(
     logger=True, 
     engineio_logger=True
 )
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Range')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Expose-Headers', 'Content-Length,Content-Range,Accept-Ranges')
+    return response
 
 
 class Room(db.Model):
@@ -490,11 +498,7 @@ yt_url_cache = {} # video_id -> (url, expires_at)
 @app.route('/api/yt/stream/<video_id>', methods=['GET', 'HEAD', 'OPTIONS'])
 def stream_yt(video_id):
     if request.method == 'OPTIONS':
-        resp = Response()
-        resp.headers['Access-Control-Allow-Origin'] = '*'
-        resp.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
-        resp.headers['Access-Control-Allow-Headers'] = 'Range, Content-Type, Authorization'
-        return resp
+        return Response()
 
     now = datetime.datetime.now(datetime.timezone.utc)
     
@@ -531,7 +535,8 @@ def stream_yt(video_id):
                 yt_url_cache[video_id] = (cached_url, now + datetime.timedelta(hours=1))
         except Exception as e:
             logger.error(f"YouTube Extract Error for {video_id}: {str(e)}")
-            return jsonify({'error': f'YouTube Resolution Failed: {str(e)}', 'video_id': video_id}), 500
+            resp = jsonify({'error': f'YouTube Resolution Failed: {str(e)}', 'video_id': video_id})
+            return resp, 500
 
     headers = {}
     if 'Range' in request.headers:
@@ -549,7 +554,6 @@ def stream_yt(video_id):
             for k, v in r.headers.items():
                 if k.lower() in ['content-type', 'content-length', 'accept-ranges', 'content-range']:
                     resp.headers[k] = v
-            resp.headers['Access-Control-Allow-Origin'] = '*'
             return resp
 
         proxy_headers = {
@@ -567,7 +571,8 @@ def stream_yt(video_id):
              if video_id in yt_url_cache: del yt_url_cache[video_id]
              # To avoid infinite loops, we don't call recursively here, 
              # but instead return 500 with a specific message so frontend can fallback.
-             return jsonify({'error': 'YouTube proxy session expired. Please refresh.'}), 500
+             resp = jsonify({'error': 'YouTube proxy session expired. Please refresh.'})
+             return resp, 500
         
         def generate():
             try:
@@ -582,14 +587,11 @@ def stream_yt(video_id):
                 resp.headers[k] = v
         
         # Critical: Allow Web Audio API to capture this stream
-        resp.headers['Access-Control-Allow-Origin'] = '*'
-        resp.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        resp.headers['Access-Control-Allow-Headers'] = 'Range, Content-Type, Authorization'
-        resp.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Range, Accept-Ranges'
         return resp
     except Exception as e:
         logger.error(f"YouTube Proxy Error: {str(e)}")
-        return jsonify({'error': 'Failed to stream audio'}), 500
+        resp = jsonify({'error': 'Failed to stream audio'})
+        return resp, 500
 
 @app.route('/api/spotify/resolve', methods=['POST', 'OPTIONS'])
 def resolve_spotify():
