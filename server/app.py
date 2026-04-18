@@ -567,20 +567,45 @@ def resolve_spotify():
     url = data.get('url')
     if not url: return jsonify({'error': 'URL missing'}), 400
     
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
     try:
         html = requests.get(url, headers=headers, timeout=10).text
-        title_match = re.search(r'<meta property="og:title" content="([^"]+)"', html)
-        desc_match = re.search(r'<meta property="og:description" content="([^"]+)"', html)
         
-        title = title_match.group(1) if title_match else ''
-        desc = desc_match.group(1) if desc_match else ''
+        # 1. Try to extract track title
+        title = ""
+        tm = re.search(r'<meta property="og:title" content="([^"]+)"', html)
+        if not tm: tm = re.search(r'<meta name="twitter:title" content="([^"]+)"', html)
+        if not tm: tm = re.search(r'<title>([^<]+)</title>', html)
+        if tm:
+            title = tm.group(1).replace(" | Spotify", "").replace(" - song and lyrics by", "").split(" - song by")[0].strip()
+
+        # 2. Try to extract artist
+        artist = ""
+        dm = re.search(r'<meta property="og:description" content="([^"]+)"', html)
+        if dm:
+            desc = dm.group(1)
+            # Typically: "Artist Name · Song · Year" or "Artist Name · Album · Date"
+            if " · " in desc:
+                artist = desc.split(" · ")[0].strip()
         
-        # description is usually: Artist Name · Song · 2023
-        artist = desc.split('·')[0].strip() if '·' in desc else ''
+        if not artist:
+            # Fallback for artist: look into title tag which often says "Song Name - song by Artist | Spotify"
+            tm_full = re.search(r'<title>([^<]+)</title>', html)
+            if tm_full and " - song by " in tm_full.group(1):
+                artist = tm_full.group(1).split(" - song by ")[1].split(" | Spotify")[0].strip()
         
-        # More precise search query
-        query = f"ytsearch5:{title} {artist}"
+        logger.info(f"Resolving Spotify: Title='{title}', Artist='{artist}'")
+        
+        if not title: return jsonify({'error': 'Could not extract song info'}), 400
+
+        # Strategy: Search multiple queries if needed
+        queries = [
+            f"{title} {artist} official audio",
+            f"{title} {artist}",
+            f"{artist} {title} topic"
+        ]
+        
+        best_entry = None
+        max_score = -1
         
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -588,50 +613,60 @@ def resolve_spotify():
             'no_warnings': True,
             'extract_flat': True,
         }
-        
-        best_entry = None
-        max_score = -1
-        
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(query, download=False)
-            if 'entries' in info and len(info['entries']) > 0:
-                for entry in info['entries']:
-                    score = 0
-                    yt_title = entry.get('title', '').lower()
-                    yt_uploader = entry.get('uploader', '').lower()
-                    
-                    # 1. Boost for "Topic" channels (Official Auto-generated YouTube Music content)
-                    if 'topic' in yt_uploader: score += 10
-                    # 2. Boost for artist name in title/uploader
-                    if artist.lower() in yt_uploader: score += 5
-                    if artist.lower() in yt_title: score += 3
-                    
-                    # 3. Boost for "Official Audio" or "Official Video"
-                    if 'official' in yt_title: score += 2
-                    if 'audio' in yt_title: score += 1
-                    
-                    # 4. Strict Penalty for undesirable types (unless specified in original title)
-                    unwanted = ['cover', 'karaoke', 'live', 'remix', 'tribute']
-                    for term in unwanted:
-                        if term in yt_title and term not in title.lower():
-                            score -= 15
-                    
-                    if score > max_score:
-                        max_score = score
-                        best_entry = entry
+            for q_idx, q in enumerate(queries):
+                # Only try fallback queries if we haven't found a great match yet
+                if max_score >= 15: break 
                 
-                if best_entry:
-                    return jsonify({
-                        'success': True,
-                        'youtube_id': best_entry.get('id'),
-                        'title': title or best_entry.get('title'),
-                        'artist': artist or best_entry.get('uploader'),
-                        'thumbnail': f"https://img.youtube.com/vi/{best_entry.get('id')}/hqdefault.jpg",
-                        'duration': best_entry.get('duration', 0),
-                        '_is_collection': False
-                    })
+                search_query = f"ytsearch3:{q}"
+                info = ydl.extract_info(search_query, download=False)
+                
+                if 'entries' in info and len(info['entries']) > 0:
+                    for entry in info['entries']:
+                        score = 0
+                        yt_title = entry.get('title', '').lower()
+                        yt_uploader = entry.get('uploader', '').lower()
+                        
+                        # A. Channel Credibility
+                        if 'topic' in yt_uploader: score += 12
+                        if 'vevo' in yt_uploader or 'official' in yt_uploader: score += 5
+                        
+                        # B. Artist Match (Critical)
+                        if artist and artist.lower() in yt_uploader: score += 10
+                        if artist and artist.lower() in yt_title: score += 5
+                        
+                        # C. Title Match
+                        if title.lower() in yt_title: score += 8
+                        
+                        # D. Type Identification
+                        if 'official' in yt_title: score += 3
+                        if 'audio' in yt_title: score += 2
+                        
+                        # E. Penalties for bad matches
+                        unwanted = ['cover', 'karaoke', 'live', 'tribute', 'parody', 'instrumental']
+                        for term in unwanted:
+                            if term in yt_title and term not in title.lower():
+                                score -= 20
+                        
+                        if score > max_score:
+                            max_score = score
+                            best_entry = entry
+                
+        if best_entry:
+            logger.info(f"Best match found: {best_entry.get('title')} (score {max_score})")
+            return jsonify({
+                'success': True,
+                'youtube_id': best_entry.get('id'),
+                'title': title or best_entry.get('title'),
+                'artist': artist or best_entry.get('uploader'),
+                'thumbnail': f"https://img.youtube.com/vi/{best_entry.get('id')}/hqdefault.jpg",
+                'duration': best_entry.get('duration', 0),
+                '_is_collection': False
+            })
                     
         return jsonify({'error': 'Not found on YouTube'}), 404
+
         
     except Exception as e:
         logger.error(f"Spotify resolve error: {str(e)}")
