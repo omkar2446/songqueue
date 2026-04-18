@@ -170,24 +170,30 @@ export const RoomProvider = ({ children }) => {
         setRoom(null);
     };
 
+    const contextValue = useMemo(() => ({
+        room, user, setUser, queue, users, currentSong, isPlaying, playbackTime, duration,
+        volume, setVolume, playbackRate, setPlaybackRate,
+        repeatMode, setRepeatMode,
+        shuffleMode, setShuffleMode,
+        crossfadeDuration, setCrossfadeDuration,
+        normalizeVolume, setNormalizeVolume,
+        eqBands, setEqBands,
+        hasInteracted, setHasInteracted,
+        joinRoom, setRoom, fetchRoomState, logout,
+        setIsPlaying, setPlaybackTime, setDuration,
+        removeSong, reorderSong, isPro, setIsPro,
+        ytPlayer, setYtPlayer,
+        resumeAudio,
+        showVideo, setShowVideo,
+        playbackError, setPlaybackError
+    }), [
+        room, user, queue, users, currentSong, isPlaying, playbackTime, duration,
+        volume, playbackRate, repeatMode, shuffleMode, crossfadeDuration,
+        normalizeVolume, eqBands, hasInteracted, isPro, ytPlayer, showVideo, playbackError
+    ]);
+
     return (
-        <RoomContext.Provider value={{
-            room, user, setUser, queue, users, currentSong, isPlaying, playbackTime, duration,
-            volume, setVolume, playbackRate, setPlaybackRate,
-            repeatMode, setRepeatMode,
-            shuffleMode, setShuffleMode,
-            crossfadeDuration, setCrossfadeDuration,
-            normalizeVolume, setNormalizeVolume,
-            eqBands, setEqBands,
-            hasInteracted, setHasInteracted,
-            joinRoom, setRoom, fetchRoomState, logout,
-            setIsPlaying, setPlaybackTime, setDuration,
-            removeSong, reorderSong, isPro, setIsPro,
-            ytPlayer, setYtPlayer,
-            resumeAudio,
-            showVideo, setShowVideo,
-            playbackError, setPlaybackError
-        }}>
+        <RoomContext.Provider value={contextValue}>
             {children}
         </RoomContext.Provider>
     );

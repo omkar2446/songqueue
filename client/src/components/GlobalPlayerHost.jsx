@@ -252,7 +252,7 @@ const GlobalPlayerHost = () => {
                     style={{ backgroundColor: '#000' }}
                 >
                      <YouTube 
-                        videoId={isYoutube ? currentSong.source_id : ''} 
+                        videoId={currentSong.source === 'youtube' ? currentSong.source_id : undefined} 
                         opts={ytOpts} 
                         onReady={onYtReady} 
                         onStateChange={onYtStateChange} 
