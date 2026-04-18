@@ -39,10 +39,15 @@ export const RoomProvider = ({ children }) => {
     const fetchRoomState = async (roomId) => {
         try {
             const res = await api.get(`/room/${roomId}`);
-            // Only update room if the name or ID changed significantly
-            if (!room || room.id !== res.data.id) {
-                setRoom({ id: res.data.id, name: res.data.name });
-            }
+            
+            // Only update room if the ID or name actually changed
+            setRoom(prev => {
+                if (!prev || prev.id !== res.data.id || prev.name !== res.data.name) {
+                    return { id: res.data.id, name: res.data.name };
+                }
+                return prev;
+            });
+
             setQueue(res.data.queue);
             
             if (hasInteracted) {
@@ -52,9 +57,12 @@ export const RoomProvider = ({ children }) => {
             setPlaybackTime(res.data.playback_time);
             if (res.data.repeat_type !== undefined) setRepeatMode(res.data.repeat_type);
             if (res.data.shuffle_mode !== undefined) setShuffleMode(res.data.shuffle_mode);
+            
             if (res.data.current_song_id) {
                 const song = res.data.queue.find(s => s.id === res.data.current_song_id);
-                setCurrentSong(song || null);
+                if (song) {
+                    setCurrentSong(song);
+                }
             } else {
                 setCurrentSong(null);
             }
@@ -62,53 +70,62 @@ export const RoomProvider = ({ children }) => {
         } catch (err) {
             console.error('Failed to fetch room state', err);
             if (err.response?.status === 404) {
-                setRoom(null); // Clear room state if it doesn't exist on server
+                setRoom(null);
                 return false;
             }
-            return true; // Assume transient error for others
+            return true; 
         }
     };
 
     useEffect(() => {
-        if (socket && room && user) {
-            socket.emit('join', { room: room.id, user_id: user.id, user_name: user.name });
+        if (!socket || !room || !user) return;
 
-            socket.on('user_list', setUsers);
-            socket.on('queue_updated', () => fetchRoomState(room.id));
-            socket.on('playback_update', (data) => {
-                if (data.action === 'play')  setIsPlaying(true);
-                if (data.action === 'pause') setIsPlaying(false);
-                if (data.action === 'seek')  setPlaybackTime(data.value);
-                if (data.action === 'speed') setPlaybackRate(data.value);
-            });
-            socket.on('room_state_update', (data) => {
-                console.log('Room state update received:', data);
-                if (data.repeat_type !== undefined)  setRepeatMode(data.repeat_type);
-                if (data.shuffle_mode !== undefined) setShuffleMode(data.shuffle_mode);
+        const roomId = room.id;
+        socket.emit('join', { room: roomId, user_id: user.id, user_name: user.name });
+
+        const onUserList = (data) => setUsers(data);
+        const onQueueUpdated = () => fetchRoomState(roomId);
+        const onPlaybackUpdate = (data) => {
+            if (data.action === 'play')  setIsPlaying(true);
+            if (data.action === 'pause') setIsPlaying(false);
+            if (data.action === 'seek')  setPlaybackTime(data.value);
+            if (data.action === 'speed') setPlaybackRate(data.value);
+        };
+        const onRoomStateUpdate = (data) => {
+            if (data.repeat_type !== undefined)  setRepeatMode(data.repeat_type);
+            if (data.shuffle_mode !== undefined) setShuffleMode(data.shuffle_mode);
+            
+            if (data.current_song) {
+                setCurrentSong(data.current_song);
+                setPlaybackTime(0);
+                if (hasInteracted) setIsPlaying(true);
+                setPlaybackError(false);
                 
-                if (data.current_song !== undefined) {
-                    setCurrentSong(data.current_song);
-                    setPlaybackTime(0);
-                    if (hasInteracted) setIsPlaying(true);
-                    
-                    // PRO OPTIMIZATION: Default to high-fidelity Audio EQ mode if PRO
-                    if (isPro && data.current_song?.source === 'youtube') {
-                        setShowVideo(false);
-                    }
-                } else if (data.current_song_id !== undefined) {
-                    fetchRoomState(room.id);
+                // If the previous song switched to video due to an error, 
+                // we'll try returning to Audio EQ mode for the new song unless user manually chose Video.
+                if (isPro && data.current_song.source === 'youtube') {
+                    // We only auto-disable video if it wasn't a manual choice
+                    // (This is a bit hard to track perfectly, but let's reset it periodically)
+                    setShowVideo(false);
                 }
-            });
+            } else if (data.current_song_id !== undefined) {
+                fetchRoomState(roomId);
+            }
+        };
 
-            return () => {
-                socket.emit('leave', { room: room.id, user_id: user.id });
-                socket.off('user_list');
-                socket.off('queue_updated');
-                socket.off('playback_update');
-                socket.off('room_state_update');
-            };
-        }
-    }, [socket, room, user]);
+        socket.on('user_list', onUserList);
+        socket.on('queue_updated', onQueueUpdated);
+        socket.on('playback_update', onPlaybackUpdate);
+        socket.on('room_state_update', onRoomStateUpdate);
+
+        return () => {
+            socket.emit('leave', { room: roomId, user_id: user.id });
+            socket.off('user_list', onUserList);
+            socket.off('queue_updated', onQueueUpdated);
+            socket.off('playback_update', onPlaybackUpdate);
+            socket.off('room_state_update', onRoomStateUpdate);
+        };
+    }, [socket, room?.id, user?.id]); // Only re-bind if fundamental identities change
 
     const joinRoom = async (name, email, phone, roomId = null) => {
         try {

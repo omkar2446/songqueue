@@ -537,7 +537,7 @@ def stream_yt(video_id):
             if r.status_code == 403:
                 # Cache might be stale, clear and retry once
                 if video_id in yt_url_cache: del yt_url_cache[video_id]
-                return get_yt_stream(video_id)
+                return stream_yt(video_id)
             resp = Response(status=r.status_code)
             for k, v in r.headers.items():
                 if k.lower() in ['content-type', 'content-length', 'accept-ranges', 'content-range']:
@@ -545,7 +545,12 @@ def stream_yt(video_id):
             resp.headers['Access-Control-Allow-Origin'] = '*'
             return resp
 
-        r = requests.get(cached_url, headers=headers, stream=True, timeout=15)
+        proxy_headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Referer': 'https://www.youtube.com/',
+            'Range': headers.get('Range', 'bytes=0-')
+        }
+        r = requests.get(cached_url, headers=proxy_headers, stream=True, timeout=15)
         
         if r.status_code == 403:
              # URL likely expired or session blocked

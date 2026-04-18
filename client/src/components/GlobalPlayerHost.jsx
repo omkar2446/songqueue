@@ -27,41 +27,57 @@ const GlobalPlayerHost = () => {
     const [isInternalReady, setIsInternalReady] = useState(false);
     const pollInterval = useRef(null);
     const hasSentAutoNext = useRef(false);
+    const playAttemptStart = useRef(0);
 
     // Reset auto-next flag when song changes
     useEffect(() => {
         hasSentAutoNext.current = false;
+        playAttemptStart.current = Date.now();
     }, [currentSong?.id]);
 
     const isYoutube = currentSong?.source === 'youtube';
 
-    // ── Playback Polling ──────────────────────────────────
+    // ── Playback Polling & Auto-Skip Logic ──────────────────
     useEffect(() => {
-        if (isPlaying && isInternalReady) {
-            pollInterval.current = setInterval(() => {
-                try {
-                    let t = 0;
-                    if (isYoutube && showVideo && ytRef.current) {
-                        t = ytRef.current.getCurrentTime();
-                    } else if (nativeRef.current) {
-                        t = nativeRef.current.currentTime;
-                    }
-                    if (t) {
-                        setPlaybackTime(t);
-                        
-                        // Early Auto-Play: Transition to next song 7 seconds before end
-                        if (duration > 15 && (duration - t <= 7) && !hasSentAutoNext.current && room?.id) {
-                            hasSentAutoNext.current = true;
-                            socket?.emit('playback_control', { room_id: room.id, action: 'next' });
+        if (isPlaying || !currentSong) {
+            if (isPlaying && isInternalReady) {
+                pollInterval.current = setInterval(() => {
+                    try {
+                        let t = 0;
+                        if (isYoutube && showVideo && ytRef.current) {
+                            t = ytRef.current.getCurrentTime();
+                        } else if (nativeRef.current) {
+                            t = nativeRef.current.currentTime;
                         }
-                    }
-                } catch (_) {}
-            }, 1000);
-        } else {
-            clearInterval(pollInterval.current);
+                        if (t) {
+                            setPlaybackTime(t);
+                            playAttemptStart.current = 0; // Success!
+                            
+                            // Early Auto-Play: Transition to next song 7 seconds before end
+                            if (duration > 15 && (duration - t <= 7) && !hasSentAutoNext.current && room?.id) {
+                                hasSentAutoNext.current = true;
+                                socket?.emit('playback_control', { room_id: room.id, action: 'next' });
+                            }
+                        }
+                    } catch (_) {}
+                }, 1000);
+            }
         }
-        return () => clearInterval(pollInterval.current);
-    }, [isPlaying, isInternalReady, isYoutube, showVideo]);
+
+        // AUTO-SKIP: If song hasn't started after 12s of being "playing", skip it.
+        const skipTimer = setInterval(() => {
+            if (isPlaying && playAttemptStart.current > 0 && (Date.now() - playAttemptStart.current > 12000)) {
+                console.warn("Song failed to load in 12s, skipping...");
+                playAttemptStart.current = 0;
+                socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
+            }
+        }, 3000);
+
+        return () => {
+            clearInterval(pollInterval.current);
+            clearInterval(skipTimer);
+        };
+    }, [isPlaying, isInternalReady, isYoutube, showVideo, currentSong?.id, room?.id, duration]);
 
     // ── Socket Sync ──────────────────────────────────────
     useEffect(() => {
@@ -181,18 +197,39 @@ const GlobalPlayerHost = () => {
 
             {/* YouTube IFrame — Positioned via CSS 'teleport' from MusicPlayer */}
             {isYoutube && showVideo && (
-                <div id="global-yt-portal-target" className="fixed pointer-events-none opacity-0 invisible -z-50 overflow-hidden rounded-3xl">
+                <div id="global-yt-portal-target" className="fixed pointer-events-none opacity-0 invisible -z-50 overflow-hidden rounded-3xl" style={{ backgroundColor: '#000' }}>
                      <YouTube 
+                        key={`yt-${currentSong.source_id}`}
                         videoId={currentSong.source_id} 
-                        opts={{ playerVars: { autoplay: 1, controls: 1, origin: window.location.origin, playsinline: 1 } }} 
+                        opts={{ playerVars: { autoplay: 1, controls: 1, origin: window.location.origin, playsinline: 1, rel: 0, modestbranding: 1 } }} 
                         onReady={onYtReady} 
                         onStateChange={(e) => {
+                            if (!e || !e.target) return;
                             const YT = window.YT?.PlayerState;
-                            if (e.data === YT.ENDED) socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
-                            if (e.data === YT.PLAYING) setIsPlaying(true);
+                            if (!YT) return;
+                            
+                            if (e.data === YT.ENDED) {
+                                if (!hasSentAutoNext.current) {
+                                    hasSentAutoNext.current = true;
+                                    socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
+                                }
+                            }
+                            if (e.data === YT.PLAYING) {
+                                setIsPlaying(true);
+                                playAttemptStart.current = 0; // Loaded!
+                            }
                             if (e.data === YT.PAUSED) setIsPlaying(false);
+                            if (e.data === YT.BUFFERING) {
+                                // Keep playAttemptStart going if buffering
+                            }
                         }} 
-                        onError={() => setPlaybackError(true)} 
+                        onError={() => {
+                            setPlaybackError(true);
+                            // If video fails, maybe it's restricted, try skipping after a bit
+                            setTimeout(() => {
+                                if (playbackError) socket?.emit('playback_control', { room_id: room?.id, action: 'next' });
+                            }, 3000);
+                        }} 
                         className="w-full h-full"
                         iframeClassName="w-full h-full"
                     />
