@@ -598,11 +598,15 @@ def resolve_spotify():
         
         if not title: return jsonify({'error': 'Could not extract song info'}), 400
 
+        # Sanitize query for better YouTube search
+        clean_title = re.sub(r'\(feat\..*?\)', '', title, flags=re.IGNORECASE)
+        clean_title = re.sub(r'\[.*?\]', '', clean_title).strip()
+        
         # Strategy: Search multiple queries if needed
         queries = [
-            f"{title} {artist} official audio",
-            f"{title} {artist}",
-            f"{artist} {title} topic"
+            f"{clean_title} {artist} audio",
+            f"{clean_title} {artist} official music video",
+            f"{title} {artist}"
         ]
         
         best_entry = None
@@ -617,10 +621,12 @@ def resolve_spotify():
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             for q_idx, q in enumerate(queries):
-                # Only try fallback queries if we haven't found a great match yet
-                if max_score >= 15: break 
+                # Only try fallback queries if we haven't found a decent match yet
+                if max_score >= 18: break 
                 
-                search_query = f"ytsearch3:{q}"
+                # Fetch more entries on the first/best query
+                limit = 10 if q_idx == 0 else 5
+                search_query = f"ytsearch{limit}:{q}"
                 info = ydl.extract_info(search_query, download=False)
                 
                 if 'entries' in info and len(info['entries']) > 0:
@@ -628,34 +634,42 @@ def resolve_spotify():
                         score = 0
                         yt_title = entry.get('title', '').lower()
                         yt_uploader = entry.get('uploader', '').lower()
+                        yt_duration = entry.get('duration') or 0
                         
-                        # A. Channel Credibility
-                        if 'topic' in yt_uploader: score += 12
-                        if 'vevo' in yt_uploader or 'official' in yt_uploader: score += 5
+                        # A. Channel Credibility (High Priority)
+                        if 'topic' in yt_uploader: score += 15
+                        if 'official' in yt_uploader: score += 8
+                        if 'vevo' in yt_uploader: score += 6
                         
-                        # B. Artist Match (Critical)
-                        if artist and artist.lower() in yt_uploader: score += 10
-                        if artist and artist.lower() in yt_title: score += 5
+                        # B. Artist Name Match (Very High Priority)
+                        if artist and artist.lower() in yt_uploader: score += 15
+                        elif artist and artist.lower() in yt_title: score += 5
                         
-                        # C. Title Match
-                        if title.lower() in yt_title: score += 8
+                        # C. Title Similarity
+                        # Simple word-based match count
+                        words = clean_title.lower().split()
+                        match_count = sum(1 for w in words if len(w) > 2 and w in yt_title)
+                        score += (match_count / max(len(words), 1)) * 10
                         
                         # D. Type Identification
-                        if 'official' in yt_title: score += 3
-                        if 'audio' in yt_title: score += 2
+                        if 'official' in yt_title and 'audio' in yt_title: score += 5
+                        elif 'official' in yt_title: score += 3
                         
-                        # E. Penalties for bad matches
-                        unwanted = ['cover', 'karaoke', 'live', 'tribute', 'parody', 'instrumental']
+                        # E. Duration Checks (songs are usually 1.5 to 8 mins)
+                        if yt_duration < 60 or yt_duration > 600: score -= 20
+                        
+                        # F. Penalties for bad matches
+                        unwanted = ['cover', 'karaoke', 'live', 'tribute', 'parody', 'instrumental', 'remix']
                         for term in unwanted:
                             if term in yt_title and term not in title.lower():
-                                score -= 20
+                                score -= 30
                         
                         if score > max_score:
                             max_score = score
                             best_entry = entry
-                
+                            
         if best_entry:
-            logger.info(f"Best match found: {best_entry.get('title')} (score {max_score})")
+            logger.info(f"Matched: '{best_entry.get('title')}' by '{best_entry.get('uploader')}' (Score: {max_score})")
             return jsonify({
                 'success': True,
                 'youtube_id': best_entry.get('id'),
