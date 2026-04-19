@@ -518,9 +518,14 @@ def stream_yt(video_id):
             'logtostderr': False,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'referer': 'https://www.youtube.com/',
-            'socket_timeout': 10,
+            'socket_timeout': 15,
             'source_address': '0.0.0.0', # Force IPv4
             'geo_bypass': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web']
+                }
+            }
         }
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -531,13 +536,36 @@ def stream_yt(video_id):
                     time.sleep(1)
                     info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
 
-                if not info or 'url' not in info:
-                    raise Exception("No streaming URL found in YouTube response")
-                cached_url = info['url']
-                yt_url_cache[video_id] = (cached_url, now + datetime.timedelta(hours=1))
+                if not info:
+                    raise Exception("No streaming metadata found")
+                
+                cached_url = info.get('url')
+                if not cached_url:
+                    # FALLBACK: If top-level URL is missing, search formats for the best audio stream
+                    formats = info.get('formats', [])
+                    # Prioritize audio-only formats (m4a/webm)
+                    audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') == 'none']
+                    if not audio_formats:
+                        audio_formats = [f for f in formats if f.get('acodec') != 'none']
+                    
+                    if audio_formats:
+                        # Pick the last one (usually highest quality in yt-dlp)
+                        cached_url = audio_formats[-1].get('url')
+
+                if not cached_url:
+                    raise Exception("No direct streaming URL found in available formats")
+                
+                yt_url_cache[video_id] = (cached_url, now + datetime.timedelta(minutes=30))
         except Exception as e:
             logger.error(f"YouTube Extract Error for {video_id}: {str(e)}")
-            resp = jsonify({'error': f'YouTube Resolution Failed: {str(e)}', 'video_id': video_id})
+            # Log exactly where it failed for better diagnostics
+            import traceback
+            logger.error(traceback.format_exc())
+            resp = jsonify({
+                'error': f'YouTube Resolution Failed: {str(e)}', 
+                'video_id': video_id,
+                'status': 'extract_fail'
+            })
             return resp, 500
 
     headers = {}
@@ -565,23 +593,27 @@ def stream_yt(video_id):
             'Accept': '*/*',
             'Connection': 'keep-alive',
         }
-        r = requests.get(cached_url, headers=proxy_headers, stream=True, timeout=12)
+        r = requests.get(cached_url, headers=proxy_headers, stream=True, timeout=15)
         
-        if r.status_code == 403:
-             # URL likely expired or session blocked
-             logger.warning(f"YouTube 403 for {video_id}, clearing cache...")
-             if video_id in yt_url_cache: del yt_url_cache[video_id]
-             # To avoid infinite loops, we don't call recursively here, 
-             # but instead return 500 with a specific message so frontend can fallback.
-             resp = jsonify({'error': 'YouTube proxy session expired. Please refresh.'})
+        if r.status_code not in [200, 206]:
+             logger.warning(f"YouTube Proxy failed with status {r.status_code} for {video_id}")
+             
+             if r.status_code == 403:
+                logger.info(f"Stale YouTube session detected (403) for {video_id}, retrying in 0.5s...")
+                if video_id in yt_url_cache: del yt_url_cache[video_id]
+                time.sleep(0.5) # Small buffer to avoid immediate re-block
+                return stream_yt(video_id)
+             
+             resp = jsonify({'error': f'YouTube source returned error {r.status_code}'})
              return resp, 500
         
         def generate():
             try:
-                for chunk in r.iter_content(chunk_size=1024*128):
+                for chunk in r.iter_content(chunk_size=1024*256):
                     yield chunk
             except Exception as e:
-                logger.error(f"Stream generation error: {str(e)}")
+                logger.error(f"Stream generation error for {video_id}: {str(e)}")
+                # Don't try to return 500 here, connection is already open
 
         resp = Response(generate(), status=r.status_code)
         for k, v in r.headers.items():
@@ -591,7 +623,9 @@ def stream_yt(video_id):
         # Critical: Allow Web Audio API to capture this stream
         return resp
     except Exception as e:
-        logger.error(f"YouTube Proxy Error: {str(e)}")
+        logger.error(f"YouTube Proxy Exception for {video_id}: {str(e)}")
+        # Log the beginning of the URL for diagnostics but don't leak the whole thing if it's too long
+        logger.error(f"Attempted URL: {cached_url[:100]}...")
         resp = jsonify({'error': 'Failed to stream audio'})
         return resp, 500
 

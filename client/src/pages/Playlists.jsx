@@ -30,6 +30,11 @@ const Playlists = () => {
         if (user && token) fetchPlaylists();
     }, [user, token]);
 
+    useEffect(() => {
+        if (selected) fetchPlaylistDetail(selected);
+        else setDetail(null);
+    }, [selected]);
+
     if (!token) {
         return (
             <div className="min-h-screen bg-[#000000] flex flex-col items-center justify-center p-6 text-white text-center">
@@ -63,11 +68,6 @@ const Playlists = () => {
             </div>
         );
     }
-
-    useEffect(() => {
-        if (selected) fetchPlaylistDetail(selected);
-        else setDetail(null);
-    }, [selected]);
 
     const fetchPlaylists = async () => {
         try {

@@ -29,6 +29,11 @@ const GlobalPlayerHost = () => {
     const hasSentAutoNext = useRef(false);
     const playAttemptStart = useRef(0);
     const isPlayingRef = useRef(isPlaying);
+    const lastValidYtId = useRef('');
+    
+    if (isYoutube && currentSong?.source_id) {
+        lastValidYtId.current = currentSong.source_id;
+    }
 
     // Sync ref with state
     useEffect(() => {
@@ -144,8 +149,9 @@ const GlobalPlayerHost = () => {
         setYtPlayer(e.target);
         setDuration(e.target.getDuration());
         resumeAudio();
-        if (isPlaying) e.target.playVideo();
-    }, [isPlaying, resumeAudio, setDuration, setPlaybackError, setYtPlayer]);
+        if (isPlaying && isYoutube) e.target.playVideo();
+        else e.target.pauseVideo();
+    }, [isPlaying, isYoutube, resumeAudio, setDuration, setPlaybackError, setYtPlayer]);
 
     const onNativeLoaded = useCallback((e) => {
         setIsInternalReady(true);
@@ -245,14 +251,16 @@ const GlobalPlayerHost = () => {
 
             {/* YouTube IFrame — Positioned via CSS 'teleport' from MusicPlayer */}
             {/* We keep this mounted once it's rendered to prevent API crashes during song changes */}
+            {/* YouTube IFrame — Positioned via CSS 'teleport' from MusicPlayer */}
+            {/* We keep this ALWAYS mounted once it's rendered to prevent API crashes during song changes */}
             {(isYoutube || ytRef.current) && (
                 <div 
                     id="global-yt-portal-target" 
-                    className={`fixed overflow-hidden rounded-3xl transition-opacity duration-300 ${(showVideo && isYoutube) ? 'opacity-100 z-40' : 'pointer-events-none opacity-0 invisible -z-50'}`} 
+                    className={`fixed overflow-hidden rounded-3xl transition-opacity duration-300 ${(showVideo && isYoutube) ? 'opacity-100 z-40 visible' : 'pointer-events-none opacity-0 invisible -z-50'}`} 
                     style={{ backgroundColor: '#000' }}
                 >
-                     <YouTube 
-                        videoId={currentSong.source === 'youtube' ? currentSong.source_id : undefined} 
+                      <YouTube 
+                        videoId={lastValidYtId.current || undefined} 
                         opts={ytOpts} 
                         onReady={onYtReady} 
                         onStateChange={onYtStateChange} 
