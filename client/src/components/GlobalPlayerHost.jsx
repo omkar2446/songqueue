@@ -31,6 +31,8 @@ const GlobalPlayerHost = () => {
     const isPlayingRef = useRef(isPlaying);
     const lastValidYtId = useRef('');
     
+    const isYoutube = currentSong?.source === 'youtube';
+
     if (isYoutube && currentSong?.source_id) {
         lastValidYtId.current = currentSong.source_id;
     }
@@ -45,8 +47,6 @@ const GlobalPlayerHost = () => {
         hasSentAutoNext.current = false;
         playAttemptStart.current = Date.now();
     }, [currentSong?.id]);
-
-    const isYoutube = currentSong?.source === 'youtube';
 
     // ── Playback Polling & Auto-Skip Logic ──────────────────
     useEffect(() => {
