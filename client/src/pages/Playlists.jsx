@@ -26,6 +26,27 @@ const Playlists = () => {
 
     const token = localStorage.getItem('token');
 
+    async function fetchPlaylists() {
+        try {
+            const res = await api.get('/playlists');
+            setMyPlaylists(res.data.my_playlists || []);
+            setPublicPlaylists(res.data.public_playlists || []);
+        } catch (err) {
+            console.error('Fetch playlists failed', err);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function fetchPlaylistDetail(id) {
+        try {
+            const res = await api.get(`/playlists/${id}`);
+            setDetail(res.data);
+        } catch (err) {
+            console.error('Fetch detail failed', err);
+        }
+    }
+
     useEffect(() => {
         if (user && token) fetchPlaylists();
     }, [user, token]);
@@ -69,26 +90,7 @@ const Playlists = () => {
         );
     }
 
-    const fetchPlaylists = async () => {
-        try {
-            const res = await api.get('/playlists');
-            setMyPlaylists(res.data.my_playlists || []);
-            setPublicPlaylists(res.data.public_playlists || []);
-        } catch (err) {
-            console.error('Fetch playlists failed', err);
-        } finally {
-            setLoading(false);
-        }
-    };
 
-    const fetchPlaylistDetail = async (id) => {
-        try {
-            const res = await api.get(`/playlists/${id}`);
-            setDetail(res.data);
-        } catch (err) {
-            console.error('Fetch detail failed', err);
-        }
-    };
 
     const handleCreate = async (e) => {
         e.preventDefault();
