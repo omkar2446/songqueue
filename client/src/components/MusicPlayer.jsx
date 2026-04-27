@@ -172,9 +172,15 @@ const MusicPlayer = () => {
                     {playbackError && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-center p-4 rounded-[40px] z-[60]">
                             <WifiOff className="text-red-500 mb-3" size={40} />
-                            <h3 className="text-white font-bold">Playback Restricted</h3>
-                            <p className="text-xs text-gray-400 mt-1 px-4 leading-relaxed">YouTube blocked this stream proxy.<br/>Try switching to Video Mode.</p>
-                            <button onClick={() => setShowVideo(true)} className="mt-4 px-8 py-3 bg-red-600 hover:bg-red-500 text-white text-[11px] font-black rounded-xl uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-red-500/20">Switch to Video</button>
+                            <h3 className="text-white font-bold">Playback Failed</h3>
+                            {isYoutube ? (
+                                <>
+                                    <p className="text-xs text-gray-400 mt-1 px-4 leading-relaxed">YouTube blocked this stream proxy.<br/>Try switching to Video Mode.</p>
+                                    <button onClick={() => setShowVideo(true)} className="mt-4 px-8 py-3 bg-red-600 hover:bg-red-500 text-white text-[11px] font-black rounded-xl uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-red-500/20">Switch to Video</button>
+                                </>
+                            ) : (
+                                <p className="text-xs text-gray-400 mt-1 px-4 leading-relaxed">This media could not be loaded.<br/>The file might be corrupted or inaccessible.</p>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

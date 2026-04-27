@@ -78,20 +78,30 @@ const RoomDashboard = () => {
     };
 
     const handleUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
 
         setUploading(true);
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('user_name', user?.name || 'Anonymous');
+        let firstSong = null;
 
         try {
-            const res = await api.post(`/room/${room_id}/upload`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            if (res.data.song) {
-                setPlaylistSong(res.data.song);
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('user_name', user?.name || 'Anonymous');
+
+                const res = await api.post(`/room/${room_id}/upload`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                
+                if (res.data.song && !firstSong) {
+                    firstSong = res.data.song;
+                }
+            }
+            
+            // If they uploaded exactly one song, optionally ask them to add to playlist
+            if (firstSong && files.length === 1) {
+                setPlaylistSong(firstSong);
             }
         } catch (err) {
             console.error("Upload error:", err.response?.data || err.message);
@@ -212,7 +222,7 @@ const RoomDashboard = () => {
                                     {uploading ? <Loader2 className="animate-spin" size={24} /> : <Upload size={24} />}
                                 </div>
                                 <div><p className="font-black text-sm uppercase tracking-wider">Upload</p><p className="text-[10px] text-gray-500 mt-1">MP3 / WAV Files</p></div>
-                                <input id="audio-upload" type="file" className="hidden" accept=".mp3,.wav" onChange={handleUpload} disabled={uploading} />
+                                <input id="audio-upload" type="file" multiple className="hidden" accept=".mp3,.wav" onChange={handleUpload} disabled={uploading} />
                             </motion.button>
                         </div>
                     </div>
